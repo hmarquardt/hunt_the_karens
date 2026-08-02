@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hunt the Karens</title>
+    <link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+    <div id="blocker">
+        <div id="instructions">
+            <h1>HUNT THE KARENS</h1>
+            <p class="tagline">A hyper-realistic suburban combat experience</p>
+            <div class="controls">
+                <p><strong>WASD</strong> Move</p>
+                <p><strong>Mouse</strong> Look</p>
+                <p><strong>Left Click</strong> Throw Croc</p>
+                <p><strong>R</strong> Reset Scene</p>
+                <p><strong>F3</strong> Toggle Debug</p>
+            </div>
+            <p class="start-prompt">Click anywhere to begin</p>
+        </div>
+    </div>
+
+    <div id="hud" class="hidden">
+        <div id="crosshair"></div>
+        <div id="hud-top">
+            <div id="score-display">
+                <span class="label">SCORE</span>
+                <span id="score-value">0</span>
+            </div>
+            <div id="combo-display">
+                <span id="combo-value"></span>
+            </div>
+            <div id="weapon-display">
+                <span class="label">WEAPON</span>
+                <span id="weapon-name">Croc</span>
+                <span class="label">AMMO</span>
+                <span id="ammo-value">∞</span>
+            </div>
+        </div>
+        <div id="hud-bottom">
+            <div id="hit-feedback"></div>
+        </div>
+    </div>
+
+    <div id="debug-overlay" class="hidden">
+        <div id="debug-content">
+            <h3>DEBUG</h3>
+            <div id="debug-stats"></div>
+        </div>
+    </div>
+
+    <div id="hit-marker" class="hidden"></div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "./vendor/three/three.module.js",
+            "three/addons/": "./vendor/three/"
+        }
+    }
+    </script>
+
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>
