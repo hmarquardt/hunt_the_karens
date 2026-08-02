@@ -2,6 +2,7 @@ import { Game } from './core/Game.js';
 import { TestLevel } from './levels/TestLevel.js';
 import { ManagerKaren } from './karens/ManagerKaren.js';
 import { HOAKaren } from './karens/HOAKaren.js';
+import { RetailReturnKaren } from './entities/RetailReturnKaren.js';
 
 const KAREN_REGISTRY = {
     manager: (config) => {
@@ -14,6 +15,36 @@ const KAREN_REGISTRY = {
         const karen = new HOAKaren(config);
         karen.setPlayerRef(game.playerController.player);
         karen.characterAssetName = 'robot';
+        return karen;
+    },
+    retail_return: (config) => {
+        const karenConfig = {
+            ...config,
+            karenType: 'retail_return',
+            name: 'Retail Return Karen',
+            scoreValue: 150,
+            abilities: {
+                callManager: {
+                    cooldown: 25000,
+                    speedBoost: 1.4,
+                    speedDuration: 6000,
+                },
+                violationNotice: {
+                    cooldown: 20000,
+                    noticeDuration: 12000,
+                    slowFactor: 0.5,
+                    placeDistance: 6,
+                },
+                returnWithoutReceipt: {
+                    cooldown: 30000,
+                    itemDuration: 15000,
+                    radius: 4,
+                    refundAmount: 50,
+                },
+            },
+        };
+        const karen = new RetailReturnKaren(karenConfig);
+        karen.setPlayerRef(game.playerController.player);
         return karen;
     },
 };

@@ -2,39 +2,48 @@ import * as THREE from 'three';
 import { Weapon } from './Weapon.js';
 
 export class ProjectileWeapon extends Weapon {
-    constructor(camera, projectileSystem, audioSystem, config) {
+    constructor(camera, inputManager, projectileSystem, vfxSystem, audioSystem, config) {
         super();
         this.camera = camera;
+        this.inputManager = inputManager;
         this.projectileSystem = projectileSystem;
+        this.vfxSystem = vfxSystem;
         this.audioSystem = audioSystem;
         this.config = config;
         this.cooldown = config.cooldown;
         this.ammo = config.ammo;
+        this.maxAmmo = config.ammo;
         this.spread = config.spread || 0;
+        this.name = config.displayName || 'Unknown';
+        this.view = null;
+    }
+
+    setView(view) {
+        this.view = view;
+    }
+
+    init() {}
+
+    update(delta) {}
+
+    onSelect() {
+        if (this.view) this.view.show();
+    }
+
+    onDeselect() {
+        if (this.view) this.view.hide();
+    }
+
+    canFire() {
+        const now = performance.now();
+        if ((now - this.lastFireTime) < this.cooldown) return false;
+        if (this.ammo !== Infinity && this.ammo <= 0) return false;
+        return true;
     }
 
     fire() {
-        if (!super.fire()) return false;
-
-        const direction = this._getAimDirection();
-        const origin = this.camera.position.clone();
-
-        this.projectileSystem.spawnProjectile({
-            origin: origin.clone(),
-            direction: direction.clone(),
-            velocity: this.config.velocity,
-            gravity: this.config.gravity,
-            mass: this.config.mass,
-            radius: this.config.radius,
-            bounce: this.config.bounce,
-            drag: this.config.drag,
-            damage: this.config.baseDamage,
-            model: this.config.projectileModel,
-            rotationSpeed: this.config.rotationSpeed,
-            lifetime: 8,
-        });
-
-        this.audioSystem.playShoot();
+        if (!this.canFire()) return false;
+        this.lastFireTime = performance.now();
 
         if (this.ammo !== Infinity) {
             this.ammo--;
@@ -56,4 +65,12 @@ export class ProjectileWeapon extends Weapon {
 
         return direction;
     }
+
+    reload() {
+        if (this.ammo !== Infinity) {
+            this.ammo = this.maxAmmo;
+        }
+    }
+
+    dispose() {}
 }

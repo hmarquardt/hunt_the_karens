@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import * as CONSTANTS from '../config/constants.js';
 import { PROJECTILE_MODELS } from '../config/weapons.js';
 
+const _scratchGravity = new THREE.Vector3();
+const _scratchMovement = new THREE.Vector3();
+const _scratchAxis = new THREE.Vector3(0, 0, 1);
+
 class Projectile {
     constructor() {
         this.mesh = null;
@@ -22,6 +26,11 @@ class Projectile {
         this.maxBounces = 3;
         this.debugLine = null;
         this.collisionSegment = null;
+        this.impactEffect = 'thud';
+        this.statusEffect = null;
+        this.statusDuration = 0;
+        this.splashRadius = 0;
+        this.tags = [];
     }
 
     init(config) {
@@ -38,6 +47,11 @@ class Projectile {
         this.age = 0;
         this.bounceCount = 0;
         this.active = true;
+        this.impactEffect = config.impactEffect || 'thud';
+        this.statusEffect = config.statusEffect || null;
+        this.statusDuration = config.statusDuration || 0;
+        this.splashRadius = config.splashRadius || 0;
+        this.tags = config.tags || [];
 
         this._createMesh(config.model);
 
@@ -84,14 +98,14 @@ class Projectile {
             return;
         }
 
-        const gravityVec = new THREE.Vector3(0, this.gravity * delta, 0);
-        this.velocity.add(gravityVec);
+        _scratchGravity.set(0, this.gravity * delta, 0);
+        this.velocity.add(_scratchGravity);
 
         const dragFactor = 1 - this.drag * delta * 60;
         this.velocity.multiplyScalar(Math.max(dragFactor, 0));
 
-        const movement = this.velocity.clone().multiplyScalar(delta);
-        const nextPosition = this.mesh.position.clone().add(movement);
+        _scratchMovement.copy(this.velocity).multiplyScalar(delta);
+        const nextPosition = this.mesh.position.clone().add(_scratchMovement);
 
         if (nextPosition.y < this.radius) {
             nextPosition.y = this.radius;
@@ -114,8 +128,7 @@ class Projectile {
 
         const speed = this.velocity.length();
         if (speed > 0.1) {
-            const axis = new THREE.Vector3(0, 0, 1);
-            this.mesh.rotateOnWorldAxis(axis, this.rotationSpeed * delta * (speed / 10));
+            this.mesh.rotateOnWorldAxis(_scratchAxis, this.rotationSpeed * delta * (speed / 10));
         }
     }
 

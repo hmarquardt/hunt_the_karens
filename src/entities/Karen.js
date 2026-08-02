@@ -5,6 +5,7 @@ import { KarenStateMachine, KarenState } from '../animation/KarenStateMachine.js
 import { AnimationController } from '../animation/AnimationController.js';
 import { DialogueController } from './components/DialogueController.js';
 import { KarenPerception } from './components/KarenPerception.js';
+import { StatusEffectController } from './components/StatusEffectController.js';
 
 export class Karen extends NPC {
     constructor(config) {
@@ -38,6 +39,7 @@ export class Karen extends NPC {
         });
 
         this.dialogueController = new DialogueController(this.colliderHeight);
+        this.statusEffects = new StatusEffectController();
 
         this.confrontation = {
             targetDistance: config.confrontationDistance || 4,
@@ -60,6 +62,11 @@ export class Karen extends NPC {
 
     get currentDialogue() {
         return this.dialogueController?.currentDialogue || '';
+    }
+
+    getEffectiveSpeed() {
+        const speedMult = this.statusEffects.getModifier('speedMultiplier');
+        return this.speed * speedMult;
     }
 
     _buildKarenMesh(config) {
@@ -305,6 +312,7 @@ export class Karen extends NPC {
 
     update(delta) {
         this.stateMachine.update(delta);
+        this.statusEffects.update(delta * 1000);
 
         if (!this.isAlive) {
             if (this.animController) this.animController.update(delta);
@@ -370,8 +378,9 @@ export class Karen extends NPC {
 
         if (dist > 0.5) {
             dir.normalize();
-            this.position.x += dir.x * this.speed * delta;
-            this.position.z += dir.z * this.speed * delta;
+            const effectiveSpeed = this.getEffectiveSpeed();
+            this.position.x += dir.x * effectiveSpeed * delta;
+            this.position.z += dir.z * effectiveSpeed * delta;
 
             const angle = Math.atan2(dir.x, dir.z);
             if (this.mesh) {
@@ -437,8 +446,9 @@ export class Karen extends NPC {
             dir.y = 0;
             if (dir.length() > 0.1) {
                 dir.normalize();
-                this.position.x += dir.x * this.speed * delta * 0.8;
-                this.position.z += dir.z * this.speed * delta * 0.8;
+                const effectiveSpeed = this.getEffectiveSpeed();
+                this.position.x += dir.x * effectiveSpeed * delta * 0.8;
+                this.position.z += dir.z * effectiveSpeed * delta * 0.8;
 
                 const angle = Math.atan2(dir.x, dir.z);
                 if (this.mesh) {

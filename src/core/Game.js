@@ -5,13 +5,18 @@ import { InputManager } from './InputManager.js';
 import { AssetManager } from './AssetManager.js';
 import { FPSController } from '../player/FPSController.js';
 import { CrocLauncher } from '../weapons/CrocLauncher.js';
+import { WaterBalloonLauncher } from '../weapons/WaterBalloonLauncher.js';
+import { GardenGnomeLauncher } from '../weapons/GardenGnomeLauncher.js';
+import { WeaponManager } from '../weapons/WeaponManager.js';
 import { ProjectileSystem } from '../systems/ProjectileSystem.js';
 import { CollisionSystem } from '../systems/CollisionSystem.js';
 import { ScoreSystem } from '../systems/ScoreSystem.js';
 import { VFXSystem } from '../systems/VFXSystem.js';
+import { WorldEffectSystem } from '../systems/WorldEffectSystem.js';
 import { SpawnDirector } from '../systems/SpawnDirector.js';
 import { HUD } from '../ui/HUD.js';
 import { AudioSystem } from '../systems/AudioSystem.js';
+import { WEAPON_DEFS, STATUS_DEFS } from '../config/weapons.js';
 import * as CONSTANTS from '../config/constants.js';
 
 export class Game {
@@ -33,8 +38,10 @@ export class Game {
         this.scoreSystem = new ScoreSystem();
         this.projectileSystem = new ProjectileSystem(this.renderer.scene);
         this.vfxSystem = new VFXSystem(this.renderer.scene);
+        this.worldEffectSystem = new WorldEffectSystem(this.renderer.scene);
         this.spawnDirector = null;
         this.hud = new HUD(this.scoreSystem);
+        this.weaponManager = new WeaponManager(this.renderer.camera, this.inputManager);
 
         this._initAudioOnInteraction = this._initAudioOnInteraction.bind(this);
 
@@ -66,12 +73,35 @@ export class Game {
             this.audioSystem
         );
         this.weapon.init();
+        this.weaponManager.registerWeapon('croc', this.weapon, 1);
+
+        const waterBalloon = new WaterBalloonLauncher(
+            this.renderer.camera,
+            this.inputManager,
+            this.projectileSystem,
+            this.audioSystem
+        );
+        waterBalloon.init();
+        this.weaponManager.registerWeapon('water_balloon', waterBalloon, 2);
+
+        const gardenGnome = new GardenGnomeLauncher(
+            this.renderer.camera,
+            this.inputManager,
+            this.projectileSystem,
+            this.audioSystem
+        );
+        gardenGnome.init();
+        this.weaponManager.registerWeapon('garden_gnome', gardenGnome, 3);
+
+        this.weaponManager.switchTo(0);
 
         this.collisionSystem.setProjectileSystem(this.projectileSystem);
         this.collisionSystem.setScoreSystem(this.scoreSystem);
         this.collisionSystem.setHUD(this.hud);
         this.collisionSystem.setAudioSystem(this.audioSystem);
         this.collisionSystem.setVFXSystem(this.vfxSystem);
+        this.collisionSystem.setWorldEffectSystem(this.worldEffectSystem);
+        this.collisionSystem.setStatusDefs(STATUS_DEFS);
         this.collisionSystem.setOnEnemyDefeated((enemy) => {
             this._onEnemyDefeated(enemy);
         });
@@ -115,6 +145,7 @@ export class Game {
         this.collisionSystem.clear();
         this.projectileSystem.clear();
         this.vfxSystem.clear();
+        this.worldEffectSystem.clear();
         this.scoreSystem.reset();
 
         this.sceneManager.clear();
@@ -203,16 +234,27 @@ export class Game {
         if (!this.isPaused) {
             const playerPos = this.playerController.player.position;
             this.playerController.update(delta);
-            this.weapon.update(delta);
+            this.weaponManager.update(delta);
             this.projectileSystem.update(delta);
             this.vfxSystem.update(delta);
+            this.worldEffectSystem.update(delta, this.debugEnabled);
             this.spawnDirector?.update(delta);
             this.collisionSystem.update(delta, playerPos);
+
+            const activeWeapon = this.weaponManager.getActiveWeapon();
+            if (activeWeapon) {
+                this.hud.updateWeapon(activeWeapon.name, Infinity);
+            }
+            this.hud.updateWeaponSlots(this.weaponManager.activeIndex);
+            this.hud.updateStatusEffects(this.playerController.statusEffects.getActiveEffects());
 
             const enemies = this.spawnDirector?.getEntities() || [];
             for (const enemy of enemies) {
                 if (enemy.updatePerception) {
                     enemy.updatePerception(delta, playerPos);
+                }
+                if (enemy.updateAbilities) {
+                    enemy.updateAbilities(delta, this.worldEffectSystem);
                 }
                 enemy.update(delta);
             }
@@ -227,10 +269,11 @@ export class Game {
                 frameTime: delta * 1000,
                 projectiles: this.projectileSystem.getActiveCount(),
                 pooled: this.projectileSystem.pool.length,
-                enemies: this.spawnDirector?.getEntities().length || 0,
+                enemies: this.spawnDirector?.getEntities()?.length || 0,
                 pendingSpawns: this.spawnDirector?.getPendingCount() || 0,
                 pendingRespawns: this.spawnDirector?.getRespawnCount() || 0,
                 vfx: this.vfxSystem.getActiveCount(),
+                worldEffects: this.worldEffectSystem.getActiveCount(),
                 drawCalls: info.render.calls,
                 triangles: info.render.triangles,
                 textures: info.memory.textures,

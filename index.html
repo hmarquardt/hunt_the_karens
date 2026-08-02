@@ -14,7 +14,8 @@
             <div class="controls">
                 <p><strong>WASD</strong> Move</p>
                 <p><strong>Mouse</strong> Look</p>
-                <p><strong>Left Click</strong> Throw Croc</p>
+                <p><strong>Left Click</strong> Fire Weapon</p>
+                <p><strong>1/2/3</strong> Switch Weapons</p>
                 <p><strong>R</strong> Reset Scene</p>
                 <p><strong>F3</strong> Toggle Debug</p>
             </div>
@@ -39,6 +40,21 @@
                 <span id="ammo-value">∞</span>
             </div>
         </div>
+        <div id="weapon-slots">
+            <div class="weapon-slot" id="slot-1" data-slot="0">
+                <span class="slot-key">1</span>
+                <span class="slot-name">Croc</span>
+            </div>
+            <div class="weapon-slot" id="slot-2" data-slot="1">
+                <span class="slot-key">2</span>
+                <span class="slot-name">Water Balloon</span>
+            </div>
+            <div class="weapon-slot" id="slot-3" data-slot="2">
+                <span class="slot-key">3</span>
+                <span class="slot-name">Garden Gnome</span>
+            </div>
+        </div>
+        <div id="status-effects"></div>
         <div id="hud-bottom">
             <div id="hit-feedback"></div>
         </div>

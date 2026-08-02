@@ -1,6 +1,6 @@
 import { ProjectileWeapon } from './ProjectileWeapon.js';
 
-export class CrocLauncher extends ProjectileWeapon {
+export class WaterBalloonLauncher extends ProjectileWeapon {
     constructor(camera, inputManager, projectileSystem, vfxSystem, audioSystem, config) {
         super(camera, inputManager, projectileSystem, vfxSystem, audioSystem, config);
         this.name = config.displayName;
@@ -27,12 +27,13 @@ export class CrocLauncher extends ProjectileWeapon {
             maxBounces: this.config.maxBounces,
             lifetime: 8,
             impactEffect: this.config.impactEffect,
+            splashRadius: this.config.splashRadius,
             statusEffect: this.config.statusEffect,
             statusDuration: this.config.statusDuration,
             tags: this.config.tags || [],
         });
 
-        this.audioSystem.playCrocThrow();
+        this.audioSystem.playWaterBalloonThrow();
         if (this.view) this.view.fireAnimation();
 
         return true;

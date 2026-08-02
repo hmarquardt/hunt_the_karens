@@ -145,4 +145,58 @@ export class AudioSystem {
         osc.start(now);
         osc.stop(now + 0.06);
     }
+
+    playSplash() {
+        if (!this.enabled || !this.ctx) return;
+        this._ensureContext();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+
+        const noise = this.ctx.createBufferSource();
+        const noiseBuffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.2, this.ctx.sampleRate);
+        const data = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+            data[i] = (Math.random() * 2 - 1) * 0.3;
+        }
+        noise.buffer = noiseBuffer;
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 1500;
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start(now);
+    }
+
+    playGnomeImpact() {
+        if (!this.enabled || !this.ctx) return;
+        this._ensureContext();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+
+        for (let i = 0; i < 3; i++) {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(800 + i * 200, now + i * 0.05);
+            osc.frequency.exponentialRampToValueAtTime(200, now + i * 0.05 + 0.08);
+
+            gain.gain.setValueAtTime(0.08, now + i * 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.05 + 0.1);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + i * 0.05);
+            osc.stop(now + i * 0.05 + 0.1);
+        }
+    }
 }

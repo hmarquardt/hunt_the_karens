@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/PointerLockControls.js';
 import { Player } from './Player.js';
+import { StatusEffectController } from '../entities/components/StatusEffectController.js';
 import * as CONSTANTS from '../config/constants.js';
 
 export class FPSController {
@@ -14,6 +15,7 @@ export class FPSController {
         this.moveDirection = new THREE.Vector3();
         this._isLocked = false;
         this.speedMultiplier = 1.0;
+        this.statusEffects = new StatusEffectController();
 
         this._onPointerLockError = this._onPointerLockError.bind(this);
     }
@@ -51,6 +53,9 @@ export class FPSController {
 
     update(delta) {
         if (!this._isLocked) return;
+
+        this.statusEffects.update(delta * 1000);
+        this.speedMultiplier = this.statusEffects.getModifier('speedMultiplier');
 
         this._handleRotation();
         this._handleMovement(delta);

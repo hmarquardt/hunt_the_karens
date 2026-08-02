@@ -1,6 +1,6 @@
 import { ProjectileWeapon } from './ProjectileWeapon.js';
 
-export class CrocLauncher extends ProjectileWeapon {
+export class GardenGnomeLauncher extends ProjectileWeapon {
     constructor(camera, inputManager, projectileSystem, vfxSystem, audioSystem, config) {
         super(camera, inputManager, projectileSystem, vfxSystem, audioSystem, config);
         this.name = config.displayName;
@@ -32,7 +32,7 @@ export class CrocLauncher extends ProjectileWeapon {
             tags: this.config.tags || [],
         });
 
-        this.audioSystem.playCrocThrow();
+        this.audioSystem.playGnomeThrow();
         if (this.view) this.view.fireAnimation();
 
         return true;

@@ -294,3 +294,103 @@ canvas {
     left: 0;
     transform: translateY(-50%) rotate(-45deg);
 }
+
+#weapon-slots {
+    position: absolute;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+}
+
+.weapon-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 16px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 0.75rem;
+    transition: all 0.2s ease;
+    min-width: 80px;
+}
+
+.weapon-slot.active {
+    border-color: #feca57;
+    background: rgba(254, 202, 87, 0.2);
+    box-shadow: 0 0 12px rgba(254, 202, 87, 0.4);
+}
+
+.weapon-slot .slot-key {
+    font-size: 0.6rem;
+    color: #888;
+    margin-bottom: 4px;
+}
+
+.weapon-slot.active .slot-key {
+    color: #feca57;
+}
+
+.weapon-slot .slot-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+#status-effects {
+    position: absolute;
+    bottom: 130px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 400px;
+}
+
+.status-effect {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 4px;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    animation: statusEffectPulse 1s ease-in-out infinite;
+}
+
+.status-effect.slowed {
+    border-left: 3px solid #4488ff;
+}
+
+.status-effect.soaked {
+    border-left: 3px solid #44aaff;
+}
+
+.status-effect.cited {
+    border-left: 3px solid #ffaa00;
+}
+
+.status-effect.escalated {
+    border-left: 3px solid #ff4444;
+}
+
+.status-effect.returned {
+    border-left: 3px solid #88ff88;
+}
+
+.status-effect.confused {
+    border-left: 3px solid #ff88ff;
+}
+
+@keyframes statusEffectPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}

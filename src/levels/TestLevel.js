@@ -542,6 +542,13 @@ export class TestLevel extends Level {
                 patrolRadius: 2.5,
                 orientation: -Math.PI / 3,
             }),
+            new SpawnDefinition({
+                karenType: 'retail_return',
+                position: new THREE.Vector3(-2, 0, -6),
+                patrolCenter: new THREE.Vector3(-2, 0, -6),
+                patrolRadius: 3,
+                orientation: Math.PI / 2,
+            }),
         ];
     }
 }

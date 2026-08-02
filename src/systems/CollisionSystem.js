@@ -13,6 +13,8 @@ export class CollisionSystem {
         this.hud = null;
         this.audioSystem = null;
         this.vfxSystem = null;
+        this.worldEffectSystem = null;
+        this.statusDefs = null;
         this.debugEnabled = false;
         this.debugHelpers = [];
         this._hitCooldowns = new Map();
@@ -37,6 +39,14 @@ export class CollisionSystem {
 
     setVFXSystem(vfx) {
         this.vfxSystem = vfx;
+    }
+
+    setWorldEffectSystem(wes) {
+        this.worldEffectSystem = wes;
+    }
+
+    setStatusDefs(defs) {
+        this.statusDefs = defs;
     }
 
     setDebug(enabled) {
@@ -175,17 +185,36 @@ export class CollisionSystem {
         if (this.vfxSystem) {
             const hitPos = proj.mesh.position.clone();
             const result = this.scoreSystem ? this.scoreSystem.registerHit(25) : { score: 0, earned: 25 };
-            this.vfxSystem.spawnImpact(hitPos, result.score, result.earned);
+            this.vfxSystem.spawnImpact(hitPos, result.score, result.earned, proj.impactEffect, proj.statusEffect);
         }
 
         if (this.audioSystem) {
-            this.audioSystem.playHit();
+            if (proj.impactEffect === 'splash') {
+                this.audioSystem.playSplash();
+            } else if (proj.impactEffect === 'ceramic') {
+                this.audioSystem.playGnomeImpact();
+            } else {
+                this.audioSystem.playHit();
+            }
         }
 
         if (this.hud) {
             const reaction = enemy.currentDialogue || 'Direct hit!';
             this.hud.showHitFeedback(reaction);
             this.hud.showHitMarker();
+        }
+
+        if (proj.statusEffect && enemy.statusEffects && proj.statusDuration > 0) {
+            enemy.statusEffects.add({
+                id: proj.statusEffect,
+                name: proj.statusEffect.toUpperCase(),
+                duration: proj.statusDuration,
+                ...this.statusDefs?.[proj.statusEffect],
+            });
+        }
+
+        if (proj.splashRadius > 0) {
+            this._applySplashEffect(proj, enemy);
         }
 
         if (enemy.onImpact) {
@@ -199,6 +228,29 @@ export class CollisionSystem {
         }
 
         proj.deactivate();
+    }
+
+    _applySplashEffect(proj, hitEnemy) {
+        const hitPos = proj.mesh?.position || hitEnemy.position;
+        const splashRadius = proj.splashRadius;
+
+        for (const enemy of this.enemies) {
+            if (enemy === hitEnemy || !enemy.isAlive) continue;
+
+            const dist = enemy.position.distanceTo(hitPos);
+            if (dist <= splashRadius) {
+                if (proj.statusEffect && enemy.statusEffects) {
+                    enemy.statusEffects.add({
+                        id: proj.statusEffect,
+                        name: proj.statusEffect.toUpperCase(),
+                        duration: proj.statusDuration,
+                        ...this.statusDefs?.[proj.statusEffect],
+                    });
+                }
+
+                enemy.takeDamage(proj.damage * 0.5, proj);
+            }
+        }
     }
 
     clear() {

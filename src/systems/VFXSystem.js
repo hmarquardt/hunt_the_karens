@@ -8,16 +8,26 @@ class ImpactEffect {
         this.mesh = null;
         this.ringMesh = null;
         this.scoreText = null;
+        this.particles = [];
     }
 
-    spawn(scene, position, score, points) {
+    spawn(scene, position, score, points, effectType, statusEffect) {
         this.active = true;
         this.age = 0;
-        this.lifetime = 1.0;
+        this.lifetime = effectType === 'splash' ? 0.8 : 1.0;
         this.position = position.clone();
+        this.effectType = effectType || 'thud';
 
-        this._createImpactBurst(scene, position);
-        this._createImpactRing(scene, position);
+        if (this.effectType === 'splash') {
+            this._createSplashBurst(scene, position);
+            this._createSplashRing(scene, position);
+        } else if (this.effectType === 'ceramic') {
+            this._createCeramicBurst(scene, position);
+            this._createImpactRing(scene, position, 0xdd4444);
+        } else {
+            this._createImpactBurst(scene, position);
+            this._createImpactRing(scene, position, 0xff6b6b);
+        }
         this._createScoreText(scene, position, score, points);
     }
 
@@ -50,10 +60,84 @@ class ImpactEffect {
         this.particles = particles;
     }
 
-    _createImpactRing(scene, position) {
+    _createSplashBurst(scene, position) {
+        const count = 12;
+        const particles = [];
+
+        for (let i = 0; i < count; i++) {
+            const geo = new THREE.SphereGeometry(0.03, 4, 4);
+            const mat = new THREE.MeshBasicMaterial({
+                color: 0x4488ff,
+                transparent: true,
+                opacity: 0.8,
+            });
+            const particle = new THREE.Mesh(geo, mat);
+            particle.position.copy(position);
+
+            const angle = (i / count) * Math.PI * 2;
+            const direction = new THREE.Vector3(
+                Math.cos(angle) * (0.5 + Math.random() * 0.5),
+                0.3 + Math.random() * 0.5,
+                Math.sin(angle) * (0.5 + Math.random() * 0.5)
+            );
+
+            particle.userData.velocity = direction.multiplyScalar(1.5 + Math.random());
+            particle.userData.life = 0.4 + Math.random() * 0.2;
+            particles.push(particle);
+            scene.add(particle);
+        }
+
+        this.particles = particles;
+    }
+
+    _createCeramicBurst(scene, position) {
+        const count = 10;
+        const particles = [];
+
+        for (let i = 0; i < count; i++) {
+            const geo = new THREE.BoxGeometry(0.04, 0.04, 0.04);
+            const mat = new THREE.MeshBasicMaterial({
+                color: 0xdd4444,
+                transparent: true,
+                opacity: 1,
+            });
+            const particle = new THREE.Mesh(geo, mat);
+            particle.position.copy(position);
+
+            const direction = new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                Math.random() * 1.5 + 0.3,
+                (Math.random() - 0.5) * 2
+            ).normalize();
+
+            particle.userData.velocity = direction.multiplyScalar(2 + Math.random() * 2);
+            particle.userData.life = 0.5 + Math.random() * 0.3;
+            particles.push(particle);
+            scene.add(particle);
+        }
+
+        this.particles = particles;
+    }
+
+    _createSplashRing(scene, position) {
+        const geo = new THREE.RingGeometry(0.2, 0.3, 24);
+        const mat = new THREE.MeshBasicMaterial({
+            color: 0x4488ff,
+            transparent: true,
+            opacity: 0.6,
+            side: THREE.DoubleSide,
+        });
+        this.ringMesh = new THREE.Mesh(geo, mat);
+        this.ringMesh.position.copy(position);
+        this.ringMesh.position.y += 0.3;
+        this.ringMesh.lookAt(position.clone().add(new THREE.Vector3(0, 1, 0)));
+        scene.add(this.ringMesh);
+    }
+
+    _createImpactRing(scene, position, color) {
         const geo = new THREE.RingGeometry(0.1, 0.15, 16);
         const mat = new THREE.MeshBasicMaterial({
-            color: 0xff6b6b,
+            color: color || 0xff6b6b,
             transparent: true,
             opacity: 0.8,
             side: THREE.DoubleSide,
@@ -174,14 +258,14 @@ export class VFXSystem {
         }
     }
 
-    spawnImpact(position, score, points) {
+    spawnImpact(position, score, points, effectType, statusEffect) {
         let effect = this.pool.find(e => !e.active);
         if (!effect) {
             effect = new ImpactEffect();
             this.pool.push(effect);
         }
 
-        effect.spawn(this.scene, position, score, points);
+        effect.spawn(this.scene, position, score, points, effectType, statusEffect);
         this.active.push(effect);
         return effect;
     }

@@ -11,8 +11,11 @@ export class HUD {
         this.hitMarker = document.getElementById('hit-marker');
         this.debugOverlay = document.getElementById('debug-overlay');
         this.debugStats = document.getElementById('debug-stats');
+        this.weaponSlots = document.getElementById('weapon-slots');
+        this.statusEffectsContainer = document.getElementById('status-effects');
 
         this._feedbackTimeout = null;
+        this._activeWeaponSlot = 0;
     }
 
     showHUD() {
@@ -48,6 +51,32 @@ export class HUD {
     updateWeapon(name, ammo) {
         if (this.weaponName) this.weaponName.textContent = name;
         if (this.ammoValue) this.ammoValue.textContent = ammo === Infinity ? '∞' : ammo.toString();
+    }
+
+    updateWeaponSlots(activeIndex) {
+        this._activeWeaponSlot = activeIndex;
+        const slots = this.weaponSlots?.querySelectorAll('.weapon-slot');
+        if (slots) {
+            slots.forEach((slot, i) => {
+                slot.classList.toggle('active', i === activeIndex);
+            });
+        }
+    }
+
+    updateStatusEffects(effects) {
+        if (!this.statusEffectsContainer) return;
+
+        this.statusEffectsContainer.innerHTML = '';
+
+        if (!effects || effects.length === 0) return;
+
+        for (const effect of effects) {
+            const el = document.createElement('div');
+            el.className = `status-effect ${effect.id || ''}`;
+            const remaining = Math.ceil(effect.remaining / 1000);
+            el.textContent = `${effect.name} ${remaining}s`;
+            this.statusEffectsContainer.appendChild(el);
+        }
     }
 
     showHitFeedback(text) {
