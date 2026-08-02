@@ -7,7 +7,6 @@ Throw Crocs at increasingly ridiculous Karen archetypes in realistic suburban en
 ## How to Run
 
 ```bash
-cd hunt-the-karens
 python3 -m http.server 8000
 ```
 
@@ -34,67 +33,66 @@ No npm. No build step. No Node runtime. Just static files.
 ## Repository Structure
 
 ```
-hunt-the-karens/
-    index.html                  Entry point
-    css/
-        game.css                HUD and UI styles
+index.html                  Entry point
+css/
+    game.css                HUD and UI styles
 
-    src/
-        main.js                 Application bootstrap + spawn setup
-        core/
-            Game.js             Main game loop and orchestration
-            Renderer.js         Three.js renderer setup
-            SceneManager.js     Scene and object management
-            InputManager.js     Keyboard and mouse input
-            AssetManager.js     Texture/model/audio/character loading
-        player/
-            Player.js           Player entity data
-            FPSController.js    First-person camera + movement
-        weapons/
-            Weapon.js           Base weapon class
-            ProjectileWeapon.js Projectile weapon base
-            CrocLauncher.js     Croc launcher implementation
-        entities/
-            NPC.js              Base NPC class
-            Karen.js            Karen enemy base (state machine, animation, perception)
-        karens/
-            ManagerKaren.js     Manager Karen archetype
-            HOAKaren.js         HOA President Karen archetype
-        animation/
-            AnimationController.js  AnimationMixer wrapper with crossfading
-            CharacterAsset.js       GLTF character loader + SkeletonUtils clone
-            KarenStateMachine.js    Explicit state machine (IDLE/PATROL/ALERT/etc.)
-        systems/
-            ProjectileSystem.js Projectile physics, pooling, swept collision
-            CollisionSystem.js  Hit detection, swept sphere-cylinder, VFX trigger
-            ScoreSystem.js      Score and combo tracking
-            AudioSystem.js      Procedural audio via Web Audio API
-            VFXSystem.js        Impact particles, rings, floating score text
-            SpawnDirector.js    Configuration-driven enemy spawning
-        levels/
-            Level.js            Base level class
-            TestLevel.js        Suburban retail environment
-        ui/
-            HUD.js              Heads-up display controller
-        config/
-            constants.js        Global game constants
-            karenTypes.js       Karen archetype definitions (data-driven)
-            weapons.js          Weapon definitions
+src/
+    main.js                 Application bootstrap + spawn setup
+    core/
+        Game.js             Main game loop and orchestration
+        Renderer.js         Three.js renderer setup
+        SceneManager.js     Scene and object management
+        InputManager.js     Keyboard and mouse input
+        AssetManager.js     Texture/model/audio/character loading
+    player/
+        Player.js           Player entity data
+        FPSController.js    First-person camera + movement
+    weapons/
+        Weapon.js           Base weapon class
+        ProjectileWeapon.js Projectile weapon base
+        CrocLauncher.js     Croc launcher implementation
+    entities/
+        NPC.js              Base NPC class
+        Karen.js            Karen enemy base (state machine, animation, perception)
+    karens/
+        ManagerKaren.js     Manager Karen archetype
+        HOAKaren.js         HOA President Karen archetype
+    animation/
+        AnimationController.js  AnimationMixer wrapper with crossfading
+        CharacterAsset.js       GLTF character loader + SkeletonUtils clone
+        KarenStateMachine.js    Explicit state machine (IDLE/PATROL/ALERT/etc.)
+    systems/
+        ProjectileSystem.js Projectile physics, pooling, swept collision
+        CollisionSystem.js  Hit detection, swept sphere-cylinder, VFX trigger
+        ScoreSystem.js      Score and combo tracking
+        AudioSystem.js      Procedural audio via Web Audio API
+        VFXSystem.js        Impact particles, rings, floating score text
+        SpawnDirector.js    Configuration-driven enemy spawning
+    levels/
+        Level.js            Base level class
+        TestLevel.js        Suburban retail environment
+    ui/
+        HUD.js              Heads-up display controller
+    config/
+        constants.js        Global game constants
+        karenTypes.js       Karen archetype definitions (data-driven)
+        weapons.js          Weapon definitions
 
-    vendor/
-        three/                  Vendored Three.js r164 + addons
-        VERSIONS.md             Dependency + asset manifest
+vendor/
+    three/                  Vendored Three.js r164 + addons
+    VERSIONS.md             Dependency + asset manifest
 
-    assets/
-        models/
-            RobotExpressive.glb  Temporary character model (MIT)
-        textures/               (reserved)
-        audio/                  (reserved)
-        environments/           (reserved)
+assets/
+    models/
+        RobotExpressive.glb  Temporary character model (MIT)
+    textures/               (reserved)
+    audio/                  (reserved)
+    environments/           (reserved)
 
-    docs/
-        architecture.md         System architecture documentation
-        asset-pipeline.md       Asset creation and import guide
+docs/
+    architecture.md         System architecture documentation
+    asset-pipeline.md       Asset creation and import guide
 ```
 
 ## Vendored Dependencies
