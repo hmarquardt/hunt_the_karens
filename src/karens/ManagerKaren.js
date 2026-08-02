@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { Karen } from '../entities/Karen.js';
 import { KAREN_TYPES } from '../config/karenTypes.js';
 

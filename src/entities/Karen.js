@@ -3,6 +3,8 @@ import { NPC } from './NPC.js';
 import { KAREN_BASE } from '../config/karenTypes.js';
 import { KarenStateMachine, KarenState } from '../animation/KarenStateMachine.js';
 import { AnimationController } from '../animation/AnimationController.js';
+import { DialogueController } from './components/DialogueController.js';
+import { KarenPerception } from './components/KarenPerception.js';
 
 export class Karen extends NPC {
     constructor(config) {
@@ -24,21 +26,18 @@ export class Karen extends NPC {
         this.stateMachine = new KarenStateMachine();
         this.animController = null;
         this.dialogueTimer = 0;
-        this.currentDialogue = '';
         this.patrolCenter = config.patrolCenter || new THREE.Vector3();
         this.patrolRadius = config.patrolRadius || 3;
         this.targetAngle = Math.random() * Math.PI * 2;
         this.angleChangeTimer = 0;
-        this.dialogueBubble = null;
 
-        this.perception = {
-            playerDetected: false,
-            playerPosition: new THREE.Vector3(),
-            playerDistance: Infinity,
+        this.perception = new KarenPerception({
+            detectionRange: config.detectionRange || 15,
             detectionAngle: config.detectionAngle || Math.PI * 0.6,
-            lastKnownPlayerPosition: new THREE.Vector3(),
-            awarenessLevel: 0,
-        };
+            aggressionRange: config.aggressionRange || 10,
+        });
+
+        this.dialogueController = new DialogueController(this.colliderHeight);
 
         this.confrontation = {
             targetDistance: config.confrontationDistance || 4,
@@ -49,6 +48,7 @@ export class Karen extends NPC {
 
         this.onImpact = null;
         this.onRespawn = null;
+        this._spawnDefinition = null;
 
         if (config.playerRef) {
             this._playerRef = config.playerRef;
@@ -58,6 +58,10 @@ export class Karen extends NPC {
         this._setupStateMachine();
     }
 
+    get currentDialogue() {
+        return this.dialogueController?.currentDialogue || '';
+    }
+
     _buildKarenMesh(config) {
         if (this.characterAssetName) {
             this._setupCharacterAsset(config);
@@ -65,10 +69,8 @@ export class Karen extends NPC {
             this._buildPlaceholderMesh(config);
         }
 
-        this.dialogueBubble = this._createDialogueBubble();
-        if (this.mesh) {
-            this.mesh.add(this.dialogueBubble);
-            this.dialogueBubble.visible = false;
+        if (this.dialogueController) {
+            this.dialogueController.attachTo(this.mesh);
         }
 
         if (this.mesh) {
@@ -89,7 +91,7 @@ export class Karen extends NPC {
 
         while (this.mesh.children.length > 0) {
             const child = this.mesh.children[0];
-            if (child === this.dialogueBubble) {
+            if (child === this.dialogueController?.dialogueBubble) {
                 this.mesh.remove(child);
             } else {
                 this.mesh.remove(child);
@@ -106,9 +108,11 @@ export class Karen extends NPC {
         this.colliderHeight = this.colliderHeight || 1.6;
         this.colliderRadius = this.colliderRadius || 0.4;
 
-        if (this.dialogueBubble) {
-            this.mesh.add(this.dialogueBubble);
-            this.dialogueBubble.visible = false;
+        if (this.dialogueController) {
+            if (this.dialogueController.dialogueBubble.parent) {
+                this.dialogueController.dialogueBubble.parent.remove(this.dialogueController.dialogueBubble);
+            }
+            this.dialogueController.attachTo(this.mesh);
         }
 
         this.mesh.userData.isKaren = true;
@@ -174,87 +178,16 @@ export class Karen extends NPC {
         this.colliderRadius = this.colliderRadius || 0.4;
     }
 
-    _roundedRect(ctx, x, y, w, h, r) {
-        ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.lineTo(x + w - r, y);
-        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-        ctx.lineTo(x + w, y + h - r);
-        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-        ctx.lineTo(x + r, y + h);
-        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-        ctx.lineTo(x, y + r);
-        ctx.quadraticCurveTo(x, y, x + r, y);
-        ctx.closePath();
-    }
-
-    _createDialogueBubble() {
-        const group = new THREE.Group();
-
-        const canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 64;
-        const ctx = canvas.getContext('2d');
-
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        this._roundedRect(ctx, 0, 0, 256, 64, 8);
-        ctx.fill();
-
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 18px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('...', 128, 32);
-
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.needsUpdate = true;
-
-        const bubbleGeo = new THREE.PlaneGeometry(1.5, 0.375);
-        const bubbleMat = new THREE.MeshBasicMaterial({
-            map: texture,
-            transparent: true,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-        });
-        const bubble = new THREE.Mesh(bubbleGeo, bubbleMat);
-        bubble.position.y = this.colliderHeight + 0.5;
-        bubble.userData.canvas = canvas;
-        bubble.userData.texture = texture;
-        bubble.userData.ctx = ctx;
-
-        group.add(bubble);
-        return group;
-    }
-
     updateDialogue(text) {
-        if (!this.dialogueBubble || !text) return;
-
-        const bubble = this.dialogueBubble.children[0];
-        const ctx = bubble.userData.ctx;
-        const canvas = bubble.userData.canvas;
-        const texture = bubble.userData.texture;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-        this._roundedRect(ctx, 0, 0, canvas.width, canvas.height, 8);
-        ctx.fill();
-
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 16px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-
-        texture.needsUpdate = true;
-        this.dialogueBubble.visible = true;
-        this.currentDialogue = text;
+        if (this.dialogueController) {
+            this.dialogueController.show(text);
+        }
     }
 
     hideDialogue() {
-        if (this.dialogueBubble) {
-            this.dialogueBubble.visible = false;
+        if (this.dialogueController) {
+            this.dialogueController.hide();
         }
-        this.currentDialogue = '';
     }
 
     _setupStateMachine() {
@@ -277,7 +210,11 @@ export class Karen extends NPC {
                 break;
             case KarenState.ALERT:
                 this._playAnimation('Idle', { crossfade: 0.15 });
-                this.updateDialogue(this.dialogue.length > 0 ? this.dialogue[Math.floor(Math.random() * this.dialogue.length)] : 'Hey!');
+                if (this.dialogue.length > 0) {
+                    this.updateDialogue(this.dialogue[Math.floor(Math.random() * this.dialogue.length)]);
+                } else {
+                    this.updateDialogue('Hey!');
+                }
                 break;
             case KarenState.CONFRONT:
                 this._playAnimation('Walking', { crossfade: 0.2, timeScale: 0.8 });
@@ -314,35 +251,9 @@ export class Karen extends NPC {
 
     updatePerception(delta, playerPosition) {
         if (!playerPosition) return;
-
-        const toPlayer = new THREE.Vector3().subVectors(playerPosition, this.position);
-        toPlayer.y = 0;
-        const distance = toPlayer.length();
-
-        this.perception.playerPosition.copy(playerPosition);
-        this.perception.playerDistance = distance;
-
-        const inRange = distance <= this.detectionRange;
-
-        if (inRange) {
-            const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.mesh.quaternion);
-            forward.y = 0;
-            forward.normalize();
-
-            const toPlayerDir = toPlayer.clone().normalize();
-            const dot = forward.dot(toPlayerDir);
-            const angleThreshold = Math.cos(this.perception.detectionAngle / 2);
-
-            this.perception.playerDetected = dot > angleThreshold;
-
-            if (this.perception.playerDetected) {
-                this.perception.lastKnownPlayerPosition.copy(playerPosition);
-                this.perception.awarenessLevel = Math.min(1, this.perception.awarenessLevel + delta * 0.5);
-            }
-        } else {
-            this.perception.playerDetected = false;
-            this.perception.awarenessLevel = Math.max(0, this.perception.awarenessLevel - delta * 0.3);
-        }
+        const karenPos = this.position;
+        const karenQuat = this.mesh?.quaternion || new THREE.Quaternion();
+        this.perception.update(karenPos, karenQuat, playerPosition);
     }
 
     takeDamage(amount, source) {
@@ -433,7 +344,6 @@ export class Karen extends NPC {
         }
 
         this._updateDialogue(delta);
-
         this._updateDialogueBubble(delta);
     }
 
@@ -477,22 +387,20 @@ export class Karen extends NPC {
     }
 
     _checkDetection() {
-        if (!this.perception.playerDetected) return;
-
-        if (this.perception.playerDistance <= this.aggressionRange) {
+        if (this.perception.shouldConfront()) {
             this.stateMachine.transitionTo(KarenState.CONFRONT);
-        } else if (this.perception.playerDistance <= this.detectionRange) {
+        } else if (this.perception.shouldAlert()) {
             this.stateMachine.transitionTo(KarenState.ALERT);
         }
     }
 
     _updateAlert(delta) {
-        if (this.perception.playerDetected && this.perception.playerDistance <= this.aggressionRange) {
+        if (this.perception.shouldConfront()) {
             this.stateMachine.transitionTo(KarenState.CONFRONT);
             return;
         }
 
-        if (!this.perception.playerDetected) {
+        if (!this.perception.shouldAlert()) {
             this.stateMachine.transitionTo(KarenState.PATROL);
             return;
         }
@@ -513,7 +421,7 @@ export class Karen extends NPC {
     _updateConfront(delta) {
         this.confrontation.confrontationTimer += delta * 1000;
 
-        if (!this.perception.playerDetected || this.perception.playerDistance > this.detectionRange * 1.2) {
+        if (this.perception.shouldDisengage()) {
             this.confrontation.confrontationTimer = 0;
             this.stateMachine.transitionTo(KarenState.PATROL);
             return;
@@ -568,33 +476,14 @@ export class Karen extends NPC {
             this.dialogueTimer = 0;
             const idx = Math.floor(Math.random() * this.dialogue.length);
             this.updateDialogue(this.dialogue[idx]);
-
-            setTimeout(() => {
-                this.hideDialogue();
-            }, 2500);
         }
     }
 
     _updateDialogueBubble(delta) {
-        if (this.dialogueBubble && this.dialogueBubble.visible) {
-            const worldPos = new THREE.Vector3();
-            if (this.characterMesh) {
-                worldPos.setFromMatrixPosition(this.characterMesh.matrixWorld);
-                worldPos.y += this.colliderHeight * 0.8;
-            } else {
-                worldPos.copy(this.position);
-                worldPos.y += this.colliderHeight + 0.5;
-            }
+        if (!this.dialogueController) return;
 
-            this.dialogueBubble.position.copy(worldPos);
-            this.dialogueBubble.position.y += 0.5;
-
-            const cameraPos = new THREE.Vector3();
-            if (this._playerRef) {
-                cameraPos.copy(this._playerRef.position);
-            }
-            this.dialogueBubble.lookAt(cameraPos.x, this.dialogueBubble.position.y, cameraPos.z);
-        }
+        const cameraPos = this._playerRef?.position || null;
+        this.dialogueController.updatePosition(this.position, cameraPos, this.characterMesh);
     }
 
     getBounds() {

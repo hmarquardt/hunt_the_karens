@@ -37,7 +37,9 @@ export class SceneManager {
     unregisterEnemy(enemy) {
         const idx = this.enemies.indexOf(enemy);
         if (idx !== -1) this.enemies.splice(idx, 1);
-        this.scene.remove(enemy.mesh);
+        if (enemy.mesh && enemy.mesh.parent) {
+            this.scene.remove(enemy.mesh);
+        }
     }
 
     registerProjectile(projectile) {

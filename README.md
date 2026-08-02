@@ -38,9 +38,9 @@ css/
     game.css                HUD and UI styles
 
 src/
-    main.js                 Application bootstrap + spawn setup
+    main.js                 Bootstrap only (no monkey-patching)
     core/
-        Game.js             Main game loop and orchestration
+        Game.js             Authoritative lifecycle + game loop
         Renderer.js         Three.js renderer setup
         SceneManager.js     Scene and object management
         InputManager.js     Keyboard and mouse input
@@ -54,21 +54,24 @@ src/
         CrocLauncher.js     Croc launcher implementation
     entities/
         NPC.js              Base NPC class
-        Karen.js            Karen enemy base (state machine, animation, perception)
+        Karen.js            Karen enemy base (component orchestration)
+        components/
+            DialogueController.js  Canvas dialogue bubble
+            KarenPerception.js     Detection FOV, awareness, distance
     karens/
         ManagerKaren.js     Manager Karen archetype
         HOAKaren.js         HOA President Karen archetype
     animation/
         AnimationController.js  AnimationMixer wrapper with crossfading
         CharacterAsset.js       GLTF character loader + SkeletonUtils clone
-        KarenStateMachine.js    Explicit state machine (IDLE/PATROL/ALERT/etc.)
+        KarenStateMachine.js    9-state explicit state machine
     systems/
         ProjectileSystem.js Projectile physics, pooling, swept collision
-        CollisionSystem.js  Hit detection, swept sphere-cylinder, VFX trigger
+        CollisionSystem.js  Hit detection only (no respawn policy)
         ScoreSystem.js      Score and combo tracking
         AudioSystem.js      Procedural audio via Web Audio API
         VFXSystem.js        Impact particles, rings, floating score text
-        SpawnDirector.js    Configuration-driven enemy spawning
+        SpawnDirector.js    Enemy lifecycle ownership (spawn + respawn)
     levels/
         Level.js            Base level class
         TestLevel.js        Suburban retail environment
@@ -123,7 +126,7 @@ All dependencies are downloaded from jsdelivr CDN and vendored locally. See `ven
 
 ## Current Milestone
 
-**Playable Vertical Slice** - Milestone 2
+**Stabilized Vertical Slice** - Milestone 2.1
 
 - Animated GLTF character (RobotExpressive) with skeletal animation
 - AnimationMixer with crossfading between states (Idle, Walking, Punch, Death, ThumbsUp)

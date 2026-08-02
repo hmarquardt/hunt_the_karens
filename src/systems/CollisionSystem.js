@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import * as CONSTANTS from '../config/constants.js';
 
+const _scratchVec1 = new THREE.Vector3();
+const _scratchVec2 = new THREE.Vector3();
+const _scratchVec3 = new THREE.Vector3();
+
 export class CollisionSystem {
     constructor() {
         this.enemies = [];
@@ -12,7 +16,7 @@ export class CollisionSystem {
         this.debugEnabled = false;
         this.debugHelpers = [];
         this._hitCooldowns = new Map();
-        this._respawnTimers = [];
+        this._onEnemyDefeated = null;
     }
 
     setProjectileSystem(ps) {
@@ -45,7 +49,14 @@ export class CollisionSystem {
         }
     }
 
+    setOnEnemyDefeated(callback) {
+        this._onEnemyDefeated = callback;
+    }
+
     registerEnemy(enemy) {
+        if (this.debugEnabled && this.enemies.includes(enemy)) {
+            console.warn('[CollisionSystem] Enemy already registered:', enemy.uid);
+        }
         this.enemies.push(enemy);
     }
 
@@ -70,7 +81,7 @@ export class CollisionSystem {
                 if (!enemy.isAlive) continue;
 
                 const now = performance.now();
-                const cooldownKey = `${enemy.uid || enemy}-${proj}`;
+                const cooldownKey = `${enemy.uid}-${proj}`;
                 if (this._hitCooldowns.has(cooldownKey)) {
                     if (now - this._hitCooldowns.get(cooldownKey) < 200) {
                         continue;
@@ -97,10 +108,13 @@ export class CollisionSystem {
 
         const enemyBounds = enemy.getBounds();
 
-        const dx = projBounds.center.x - enemyBounds.center.x;
-        const dz = projBounds.center.z - enemyBounds.center.z;
+        _scratchVec1.set(
+            projBounds.center.x - enemyBounds.center.x,
+            0,
+            projBounds.center.z - enemyBounds.center.z
+        );
 
-        const horizontalDist = Math.sqrt(dx * dx + dz * dz);
+        const horizontalDist = _scratchVec1.length();
         const combinedRadius = projBounds.radius + enemyBounds.radius;
 
         if (horizontalDist <= combinedRadius) {
@@ -116,34 +130,36 @@ export class CollisionSystem {
 
         const segment = proj.getCollisionSegment();
         if (segment) {
-            return this._sweptSphereCylinderIntersect(segment, enemyBounds, combinedRadius);
+            return this._sweptSphereCylinderIntersect(segment, projBounds.radius, enemyBounds);
         }
 
         return false;
     }
 
-    _sweptSphereCylinderIntersect(segment, enemyBounds, combinedRadius) {
-        const axis = new THREE.Vector3().subVectors(segment.end, segment.start);
-        const lengthSq = axis.lengthSq();
+    _sweptSphereCylinderIntersect(segment, projectileRadius, enemyBounds) {
+        _scratchVec1.subVectors(segment.end, segment.start);
+        const lengthSq = _scratchVec1.lengthSq();
 
         if (lengthSq < 0.0001) return false;
 
-        const dir = axis.clone().normalize();
+        _scratchVec2.copy(_scratchVec1).normalize();
 
-        const toEnemy = new THREE.Vector3().subVectors(enemyBounds.center, segment.start);
-        toEnemy.y = 0;
+        _scratchVec3.subVectors(enemyBounds.center, segment.start);
+        _scratchVec3.y = 0;
 
-        const t = toEnemy.dot(dir);
+        const t = _scratchVec3.dot(_scratchVec2);
 
         if (t < 0 || t > Math.sqrt(lengthSq)) return false;
 
-        const closestPoint = segment.start.clone().addScaledVector(dir, t);
-        const dist = closestPoint.distanceTo(new THREE.Vector3(enemyBounds.center.x, closestPoint.y, enemyBounds.center.z));
+        _scratchVec1.copy(segment.start).addScaledVector(_scratchVec2, t);
+        const dist = _scratchVec1.distanceTo(
+            _scratchVec3.set(enemyBounds.center.x, _scratchVec1.y, enemyBounds.center.z)
+        );
 
-        if (dist > combinedRadius) return false;
+        if (dist > projectileRadius + enemyBounds.radius) return false;
 
-        const projMinY = Math.min(segment.start.y, segment.end.y) - (this.projectileSystem?.getActiveProjectiles().find(p => p.mesh?.userData.isProjectile)?.radius || 0.25);
-        const projMaxY = Math.max(segment.start.y, segment.end.y) + 0.25;
+        const projMinY = Math.min(segment.start.y, segment.end.y) - projectileRadius;
+        const projMaxY = Math.max(segment.start.y, segment.end.y) + projectileRadius;
         const enemyBottom = enemyBounds.center.y;
         const enemyTop = enemyBounds.center.y + enemyBounds.height;
 
@@ -154,9 +170,11 @@ export class CollisionSystem {
         const wasAlive = enemy.isAlive;
         enemy.takeDamage(proj.damage, proj);
 
+        const wasDefeated = wasAlive && !enemy.isAlive;
+
         if (this.vfxSystem) {
             const hitPos = proj.mesh.position.clone();
-            const result = this.scoreSystem ? this.scoreSystem.registerHit(25) : { earned: 25 };
+            const result = this.scoreSystem ? this.scoreSystem.registerHit(25) : { score: 0, earned: 25 };
             this.vfxSystem.spawnImpact(hitPos, result.score, result.earned);
         }
 
@@ -174,68 +192,17 @@ export class CollisionSystem {
             enemy.onImpact(proj);
         }
 
-        if (!wasAlive && enemy.health <= 0) {
-            this._onEnemyDefeated(enemy, proj);
+        if (wasDefeated) {
+            if (this._onEnemyDefeated) {
+                this._onEnemyDefeated(enemy);
+            }
         }
 
         proj.deactivate();
     }
 
-    _onEnemyDefeated(enemy, proj) {
-        if (this.audioSystem) {
-            this.audioSystem.playDefeat();
-        }
-
-        if (this.scoreSystem) {
-            const result = this.scoreSystem.registerDefeat(enemy.scoreValue);
-            if (this.hud) {
-                this.hud.showHitFeedback(`+${result.earned} ${enemy.name} DEFEATED!`);
-            }
-        }
-
-        this._startRespawnTimer(enemy);
-    }
-
-    _startRespawnTimer(enemy) {
-        const originalPosition = enemy.position.clone();
-        const originalPatrolCenter = enemy.patrolCenter.clone();
-
-        const timerId = setTimeout(() => {
-            enemy.health = enemy.maxHealth;
-            enemy.isAlive = true;
-            enemy.isStunned = false;
-            enemy.isRagdolling = false;
-            enemy.position.copy(originalPosition);
-            enemy.patrolCenter.copy(originalPatrolCenter);
-
-            if (enemy.mesh) {
-                enemy.mesh.visible = true;
-                enemy.mesh.position.copy(enemy.position);
-            }
-
-            if (enemy.onRespawn) {
-                enemy.onRespawn();
-            }
-
-            const idx = this._respawnTimers.indexOf(timerId);
-            if (idx !== -1) this._respawnTimers.splice(idx, 1);
-        }, CONSTANTS.KAREN_RESPAWN_DELAY || 5000);
-
-        this._respawnTimers.push(timerId);
-    }
-
     clear() {
-        for (const timerId of this._respawnTimers) {
-            clearTimeout(timerId);
-        }
-        this._respawnTimers = [];
         this._hitCooldowns.clear();
-
-        for (const enemy of this.enemies) {
-            if (enemy.mesh && enemy.mesh.parent) {
-                enemy.mesh.parent.remove(enemy.mesh);
-            }
-        }
         this.enemies = [];
     }
 }

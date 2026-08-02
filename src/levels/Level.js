@@ -8,7 +8,7 @@ export class Level {
         this._environmentObjects = [];
     }
 
-    build(sceneManager) {
+    async build(sceneManager) {
         this._setupLighting(sceneManager);
         this._setupGround(sceneManager);
         this._setupEnvironment(sceneManager);
@@ -55,9 +55,8 @@ export class Level {
     }
 
     _setupEnemies(sceneManager) {
-        for (const enemy of this._enemies) {
-            sceneManager.registerEnemy(enemy);
-        }
+        // Enemy spawning is handled by SpawnDirector, not the Level.
+        // This method is kept for backward compatibility.
     }
 
     getEnemies() {

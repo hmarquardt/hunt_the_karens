@@ -17,7 +17,6 @@ export class TestLevel extends Level {
         this._setupLighting(sceneManager);
         this._setupGround(sceneManager);
         this._setupEnvironment(sceneManager);
-        this._setupSpawnDirector(sceneManager);
     }
 
     _setupEnvironment(sceneManager) {

@@ -9,6 +9,7 @@ import { ProjectileSystem } from '../systems/ProjectileSystem.js';
 import { CollisionSystem } from '../systems/CollisionSystem.js';
 import { ScoreSystem } from '../systems/ScoreSystem.js';
 import { VFXSystem } from '../systems/VFXSystem.js';
+import { SpawnDirector } from '../systems/SpawnDirector.js';
 import { HUD } from '../ui/HUD.js';
 import { AudioSystem } from '../systems/AudioSystem.js';
 import * as CONSTANTS from '../config/constants.js';
@@ -32,6 +33,7 @@ export class Game {
         this.scoreSystem = new ScoreSystem();
         this.projectileSystem = new ProjectileSystem(this.renderer.scene);
         this.vfxSystem = new VFXSystem(this.renderer.scene);
+        this.spawnDirector = null;
         this.hud = new HUD(this.scoreSystem);
 
         this._initAudioOnInteraction = this._initAudioOnInteraction.bind(this);
@@ -44,7 +46,7 @@ export class Game {
         this._onPointerLockChange = this._onPointerLockChange.bind(this);
     }
 
-    async init() {
+    async init(karenRegistry) {
         await this.assetManager.loadAll();
 
         this.renderer.init();
@@ -70,8 +72,23 @@ export class Game {
         this.collisionSystem.setHUD(this.hud);
         this.collisionSystem.setAudioSystem(this.audioSystem);
         this.collisionSystem.setVFXSystem(this.vfxSystem);
+        this.collisionSystem.setOnEnemyDefeated((enemy) => {
+            this._onEnemyDefeated(enemy);
+        });
 
         this.scoreSystem.setHUD(this.hud);
+
+        const characterAssets = new Map();
+        for (const [name] of this.assetManager.characterAssets) {
+            characterAssets.set(name, this.assetManager.getCharacterAsset(name));
+        }
+
+        this.spawnDirector = new SpawnDirector(
+            this.sceneManager,
+            this.collisionSystem,
+            characterAssets,
+            karenRegistry
+        );
 
         document.addEventListener('keydown', this._onKeyDown);
         document.addEventListener('pointerlockchange', this._onPointerLockChange);
@@ -82,24 +99,58 @@ export class Game {
         console.log('[Game] Initialized successfully');
     }
 
-    loadLevel(levelInstance) {
-        this.level = levelInstance;
-        this.sceneManager.clear();
-        this.projectileSystem.clear();
-        this.vfxSystem.clear();
-        this.collisionSystem.clear();
-        this.scoreSystem.reset();
+    registerKarenFactory(type, factory) {
+        if (this.spawnDirector) {
+            this.spawnDirector.setKarenRegistry({ [type]: factory });
+        }
+    }
 
-        levelInstance.build(this.sceneManager);
-        this.playerController.reset(levelInstance.spawnPoint);
+    async loadLevel(levelInstance, factoryFn) {
+        this.isPaused = true;
 
-        const enemies = levelInstance.getEnemies();
-        for (const enemy of enemies) {
-            this.collisionSystem.registerEnemy(enemy);
+        if (this.spawnDirector) {
+            this.spawnDirector.clear();
         }
 
+        this.collisionSystem.clear();
+        this.projectileSystem.clear();
+        this.vfxSystem.clear();
+        this.scoreSystem.reset();
+
+        this.sceneManager.clear();
+
+        await levelInstance.build(this.sceneManager);
+
+        this.playerController.reset(levelInstance.spawnPoint);
+
+        if (this.spawnDirector && factoryFn) {
+            const spawnDefs = levelInstance.getSpawnDefinitions();
+            this.spawnDirector.addSpawnDefinitions(spawnDefs);
+            await this.spawnDirector.spawnAll(factoryFn);
+        }
+
+        this.level = levelInstance;
         this.hud.updateScore(0);
         this.hud.updateCombo(0);
+
+        this.isPaused = false;
+    }
+
+    _onEnemyDefeated(enemy) {
+        if (this.audioSystem) {
+            this.audioSystem.playDefeat();
+        }
+
+        if (this.scoreSystem) {
+            const result = this.scoreSystem.registerDefeat(enemy.scoreValue);
+            if (this.hud) {
+                this.hud.showHitFeedback(`+${result.earned} ${enemy.name} DEFEATED!`);
+            }
+        }
+
+        if (this.spawnDirector) {
+            this.spawnDirector.scheduleRespawn(enemy);
+        }
     }
 
     start() {
@@ -118,9 +169,13 @@ export class Game {
     }
 
     reset() {
-        if (this.level) {
-            this.loadLevel(this.level);
+        if (this.level && this._lastFactoryFn) {
+            this.loadLevel(this.level, this._lastFactoryFn);
         }
+    }
+
+    setLastFactoryFn(fn) {
+        this._lastFactoryFn = fn;
     }
 
     toggleDebug() {
@@ -151,12 +206,13 @@ export class Game {
             this.weapon.update(delta);
             this.projectileSystem.update(delta);
             this.vfxSystem.update(delta);
+            this.spawnDirector?.update(delta);
             this.collisionSystem.update(delta, playerPos);
 
-            const enemies = this.sceneManager.getEnemies();
+            const enemies = this.spawnDirector?.getEntities() || [];
             for (const enemy of enemies) {
                 if (enemy.updatePerception) {
-                    enemy.updatePerception(delta, playerPos.clone());
+                    enemy.updatePerception(delta, playerPos);
                 }
                 enemy.update(delta);
             }
@@ -171,7 +227,9 @@ export class Game {
                 frameTime: delta * 1000,
                 projectiles: this.projectileSystem.getActiveCount(),
                 pooled: this.projectileSystem.pool.length,
-                enemies: this.collisionSystem.getEnemyCount(),
+                enemies: this.spawnDirector?.getEntities().length || 0,
+                pendingSpawns: this.spawnDirector?.getPendingCount() || 0,
+                pendingRespawns: this.spawnDirector?.getRespawnCount() || 0,
                 vfx: this.vfxSystem.getActiveCount(),
                 drawCalls: info.render.calls,
                 triangles: info.render.triangles,
@@ -185,7 +243,7 @@ export class Game {
         if (e.key === CONSTANTS.DEBUG_KEY || e.key === 'F3') {
             this.toggleDebug();
         }
-        if (e.key === CONSTANTS.RESET_KEY || e.key === 'R') {
+        if (e.key === CONSTANTS.RESET_KEY || e.key === 'r') {
             this.reset();
         }
     }
