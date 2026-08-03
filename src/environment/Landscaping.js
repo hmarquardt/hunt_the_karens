@@ -9,13 +9,15 @@ function seededRandom(seed) {
 }
 
 export class Landscaping {
-    constructor(materials) {
+    constructor(materials, resourceTracker) {
         this.materials = materials;
+        this.tracker = resourceTracker;
         this._treeSeed = 42;
     }
 
     createLandscapeIsland(x, z, width, depth, options = {}) {
-        const { treeCount = 1, hasShrubs = true } = options;
+        const { treeCount = 1, hasShrubs = true, rng } = options;
+        const rngFn = rng || (() => Math.random());
         const group = new THREE.Group();
 
         // Mulch bed
@@ -57,11 +59,10 @@ export class Landscaping {
         }
 
         // Trees
-        const rng = seededRandom(this._treeSeed++);
         for (let i = 0; i < treeCount; i++) {
-            const tx = x + (rng() - 0.5) * width * 0.6;
-            const tz = z + (rng() - 0.5) * depth * 0.6;
-            const tree = this.createTree(rng);
+            const tx = x + (rngFn() - 0.5) * width * 0.6;
+            const tz = z + (rngFn() - 0.5) * depth * 0.6;
+            const tree = this.createTree(rngFn);
             tree.position.set(tx, 0.15, tz);
             group.add(tree);
         }
@@ -75,7 +76,7 @@ export class Landscaping {
                 [x, z + depth / 2 - 0.5],
             ];
             for (const [sx, sz] of shrubPositions) {
-                const shrub = this.createShrub(rng);
+                const shrub = this.createShrub(rngFn);
                 shrub.position.set(sx, 0.15, sz);
                 group.add(shrub);
             }

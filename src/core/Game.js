@@ -164,6 +164,10 @@ export class Game {
     async loadLevel(levelInstance, factoryFn) {
         this.isPaused = true;
 
+        if (this.level?.dispose) {
+            this.level.dispose();
+        }
+
         if (this.spawnDirector) {
             this.spawnDirector.clear();
         }
@@ -289,12 +293,15 @@ export class Game {
                 }
                 enemy.update(delta);
             }
+
+            this.level?.update?.(delta, playerPos);
         }
 
         this.renderer.render(this.sceneManager.scene, this.renderer.camera);
 
         if (this.debugEnabled) {
             const info = this.renderer.renderer.info;
+            const envStats = this.level?.getStats?.() || {};
             this.hud.updateDebug({
                 fps: this.currentFPS,
                 frameTime: delta * 1000,
@@ -309,7 +316,20 @@ export class Game {
                 triangles: info.render.triangles,
                 textures: info.memory.textures,
                 geometries: info.memory.geometries,
+                vehicles: envStats.vehicleCount || 0,
+                carts: envStats.cartCount || 0,
+                trees: envStats.treeCount || 0,
             });
+        }
+
+        // Debug test hook
+        if (typeof window !== 'undefined') {
+            window.__HTK_DEBUG__ = {
+                game: this,
+                rendererInfo: () => this.renderer.renderer.info,
+                enemies: () => this.spawnDirector?.getEntities() || [],
+                environmentStats: () => this.level?.getStats?.() || {},
+            };
         }
     };
 

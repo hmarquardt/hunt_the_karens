@@ -124,7 +124,13 @@ export class HUD {
         if (data.projectiles !== undefined) lines.push(`Projectiles: ${data.projectiles}`);
         if (data.pooled !== undefined) lines.push(`Pooled: ${data.pooled}`);
         if (data.enemies !== undefined) lines.push(`Enemies: ${data.enemies}`);
+        if (data.pendingSpawns !== undefined) lines.push(`Pending: ${data.pendingSpawns}`);
+        if (data.pendingRespawns !== undefined) lines.push(`Respawn: ${data.pendingRespawns}`);
         if (data.vfx !== undefined) lines.push(`VFX: ${data.vfx}`);
+        if (data.worldEffects !== undefined) lines.push(`World FX: ${data.worldEffects}`);
+        if (data.vehicles !== undefined) lines.push(`Vehicles: ${data.vehicles}`);
+        if (data.carts !== undefined) lines.push(`Carts: ${data.carts}`);
+        if (data.trees !== undefined) lines.push(`Trees: ${data.trees}`);
         if (data.drawCalls !== undefined) lines.push(`Draw calls: ${data.drawCalls}`);
         if (data.triangles !== undefined) lines.push(`Triangles: ${data.triangles.toLocaleString()}`);
         if (data.textures !== undefined) lines.push(`Textures: ${data.textures}`);

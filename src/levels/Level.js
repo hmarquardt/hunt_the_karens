@@ -86,4 +86,12 @@ export class Level {
         sceneManager.add(mesh, isCollidable);
         return mesh;
     }
+
+    update(delta, playerPosition) {
+        // Override in subclass for environmental motion
+    }
+
+    dispose() {
+        // Override in subclass for resource cleanup
+    }
 }

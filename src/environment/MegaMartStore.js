@@ -2,14 +2,18 @@ import * as THREE from 'three';
 import { createSignTexture } from './EnvironmentTextures.js';
 
 export class MegaMartStore {
-    constructor(materials) {
+    constructor(materials, resourceTracker) {
         this.materials = materials;
+        this.tracker = resourceTracker;
         this.group = new THREE.Group();
         this.group.name = 'megaMartStore';
-        this._build();
     }
 
-    _build() {
+    build(sceneManager) {
+        this._build(sceneManager);
+    }
+
+    _build(sceneManager) {
         this._buildMainWall();
         this._buildParapet();
         this._buildEntranceProjection();

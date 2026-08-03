@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { createAsphaltTexture, createConcreteTexture } from './EnvironmentTextures.js';
 
 export class ParkingLot {
-    constructor(materials) {
+    constructor(materials, resourceTracker, asphaltTexture, concreteTexture) {
         this.materials = materials;
-        this.asphaltTexture = createAsphaltTexture(512, 42);
-        this.concreteTexture = createConcreteTexture(256, 123);
+        this.tracker = resourceTracker;
+        this.asphaltTexture = asphaltTexture;
+        this.concreteTexture = concreteTexture;
         this._collidables = [];
     }
 

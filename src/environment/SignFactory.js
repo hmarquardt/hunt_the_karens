@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { createSignTexture, createAccessibleSignTexture } from './EnvironmentTextures.js';
 
 export class SignFactory {
-    constructor(materials) {
+    constructor(materials, resourceTracker) {
         this.materials = materials;
+        this.tracker = resourceTracker;
     }
 
     createStopSign(x, z, rotation = 0) {

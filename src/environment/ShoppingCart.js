@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 
 export class ShoppingCart {
-    constructor(materials) {
+    constructor(materials, resourceTracker) {
         this.materials = materials;
+        this.tracker = resourceTracker;
         this._metalMat = new THREE.MeshStandardMaterial({
             color: 0xcccccc,
             roughness: 0.4,
@@ -122,9 +123,10 @@ export class ShoppingCart {
 }
 
 export class CartReturn {
-    constructor(materials, cartFactory) {
+    constructor(materials, cartFactory, resourceTracker) {
         this.materials = materials;
         this.cartFactory = cartFactory;
+        this.tracker = resourceTracker;
         this.group = new THREE.Group();
         this.group.name = 'cartReturn';
         this._build();

@@ -4,12 +4,14 @@ import { ManagerKaren } from '../karens/ManagerKaren.js';
 import { HOAKaren } from '../karens/HOAKaren.js';
 import { SpawnDefinition } from '../systems/SpawnDirector.js';
 import { EnvironmentMaterials } from '../environment/EnvironmentMaterials.js';
+import { createAsphaltTexture, createConcreteTexture, createSignTexture, createAccessibleSignTexture } from '../environment/EnvironmentTextures.js';
 import { MegaMartStore } from '../environment/MegaMartStore.js';
 import { ParkingLot } from '../environment/ParkingLot.js';
 import { VehicleFactory } from '../environment/VehicleFactory.js';
 import { ShoppingCart, CartReturn } from '../environment/ShoppingCart.js';
 import { Landscaping } from '../environment/Landscaping.js';
 import { SignFactory } from '../environment/SignFactory.js';
+import { ResourceTracker } from '../environment/ResourceTracker.js';
 
 function seededRandom(seed) {
     let s = seed;
@@ -25,41 +27,100 @@ export class TestLevel extends Level {
         this.name = 'MEGA MART - Suburban Retail Parking Lot';
         this.spawnPoint = new THREE.Vector3(0, 1.6, 12);
         this.assetManager = assetManager;
+
         this._materials = null;
-        this._disposables = [];
+        this._tracker = null;
+        this._store = null;
+        this._parkingLot = null;
+        this._vehicleFactory = null;
+        this._cartFactory = null;
+        this._landscaping = null;
+        this._signFactory = null;
+
+        // Motion/environment objects
+        this._doors = { left: null, right: null, state: 'closed', timer: 0, target: 0 };
+        this._trees = [];
+        this._rollingCart = null;
+        this._rollingCartState = { velocity: 0, direction: 0, paused: 0 };
+        this._distantVehicle = null;
+        this._distantVehicleT = 0;
+        this._hvacFans = [];
+        this._playerNearEntrance = false;
+
+        // Collision proxies for vehicles
+        this._vehicleColliders = [];
+
+        // Debug stats
+        this._stats = {
+            vehicleCount: 0,
+            cartCount: 0,
+            treeCount: 0,
+            instancedMeshCount: 0,
+        };
     }
 
     async build(sceneManager) {
         this._materials = new EnvironmentMaterials();
+        this._tracker = new ResourceTracker();
+
+        // Shared textures
+        this._asphaltTexture = this._tracker.trackTexture(createAsphaltTexture(512, 42));
+        this._concreteTexture = this._tracker.trackTexture(createConcreteTexture(256, 123));
 
         this._setupLighting(sceneManager);
         this._setupSky(sceneManager);
+        this._tracker.trackObject(this._skyMesh);
 
-        const parkingLot = new ParkingLot(this._materials);
-        parkingLot.build(sceneManager);
-        this._disposables.push(parkingLot.asphaltTexture, parkingLot.concreteTexture);
+        // Build parking lot
+        this._parkingLot = new ParkingLot(this._materials, this._tracker, this._asphaltTexture, this._concreteTexture);
+        this._parkingLot.build(sceneManager);
 
-        const store = new MegaMartStore(this._materials);
-        sceneManager.add(store.getGroup(), false);
-        for (const mesh of store.getCollisionMeshes()) {
-            sceneManager.add(mesh, true);
-        }
+        // Build store
+        this._store = new MegaMartStore(this._materials, this._tracker);
+        this._store.build(sceneManager);
+        this._tracker.trackObject(this._store.group);
 
+        // Extract door references for animation
+        this._extractDoors();
+
+        // Build vestibule/interior
+        this._buildVestibule(sceneManager);
+
+        // Extract HVAC fans for motion
+        this._extractHVACFans();
+
+        // Place vehicles
         this._placeVehicles(sceneManager);
-        this._placeCarts(sceneManager);
-        this._placeLandscaping(sceneManager);
-        this._placeLightPoles(sceneManager);
-        this._placeProps(sceneManager);
-        this._placeSigns(sceneManager);
-        this._buildHorizon(sceneManager);
-        this._addAtmosphericFog(sceneManager);
 
-        this._parkingLot = parkingLot;
+        // Place carts
+        this._placeCarts(sceneManager);
+
+        // Place landscaping (with tree references for sway)
+        this._placeLandscaping(sceneManager);
+
+        // Place light poles
+        this._placeLightPoles(sceneManager);
+
+        // Place props
+        this._placeProps(sceneManager);
+
+        // Place signs
+        this._placeSigns(sceneManager);
+
+        // Build horizon
+        this._buildHorizon(sceneManager);
+
+        // Build distant moving vehicle
+        this._buildDistantVehicle(sceneManager);
+
+        // Atmospheric fog
+        sceneManager.scene.fog = new THREE.FogExp2(0xccddbb, 0.008);
     }
 
     _setupSky(sceneManager) {
         const skyGeo = new THREE.SphereGeometry(80, 32, 16);
-        const skyMat = new THREE.ShaderMaterial({
+        this._tracker.trackGeometry(skyGeo);
+        const skyMat = this._tracker.createMaterial(THREE.ShaderMaterial, {
             uniforms: {
                 topColor: { value: new THREE.Color(0x5588bb) },
                 bottomColor: { value: new THREE.Color(0xddccaa) },
@@ -87,8 +148,8 @@ export class TestLevel extends Level {
             `,
             side: THREE.BackSide,
         });
-        const sky = new THREE.Mesh(skyGeo, skyMat);
-        sceneManager.add(sky, false);
+        this._skyMesh = new THREE.Mesh(skyGeo, skyMat);
+        sceneManager.add(this._skyMesh, false);
     }
 
     _setupLighting(sceneManager) {
@@ -114,60 +175,206 @@ export class TestLevel extends Level {
         sceneManager.add(sun.target, false);
     }
 
+    _extractDoors() {
+        // Find door meshes in the store group for animation
+        // Doors are at x = -1 and x = 1, y = 1.4, z ≈ -9.48
+        if (!this._store?.group) return;
+
+        this._store.group.traverse((child) => {
+            if (child.isMesh && Math.abs(child.position.y - 1.4) < 0.1 && Math.abs(child.position.z + 9.48) < 0.1) {
+                if (Math.abs(child.position.x + 1) < 0.1) {
+                    this._doors.left = child;
+                    this._doors.leftBaseX = -1;
+                } else if (Math.abs(child.position.x - 1) < 0.1) {
+                    this._doors.right = child;
+                    this._doors.rightBaseX = 1;
+                }
+            }
+        });
+    }
+
+    _extractHVACFans() {
+        // HVAC units are on the roof at y ≈ 8, z = -12
+        if (!this._store?.group) return;
+
+        this._store.group.traverse((child) => {
+            if (child.isMesh && child.geometry?.type === 'BoxGeometry') {
+                const p = child.position;
+                if (Math.abs(p.y - 8) < 0.5 && Math.abs(p.z + 12) < 1 && p.x > -10 && p.x < 10) {
+                    this._hvacFans.push({ mesh: child, phase: Math.random() * Math.PI * 2 });
+                }
+            }
+        });
+    }
+
+    _buildVestibule(sceneManager) {
+        const interiorMat = this._tracker.createMaterial(THREE.MeshStandardMaterial, {
+            color: 0x1a1a22,
+            roughness: 0.9,
+            metalness: 0.05,
+        });
+
+        // Floor behind glass
+        const floor = new THREE.Mesh(
+            new THREE.PlaneGeometry(6, 3),
+            this._materials.get('concrete')
+        );
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.set(0, 0.02, -9.5);
+        floor.receiveShadow = true;
+        sceneManager.add(floor, false);
+
+        // Ceiling
+        const ceiling = new THREE.Mesh(
+            new THREE.PlaneGeometry(6, 3),
+            interiorMat
+        );
+        ceiling.rotation.x = Math.PI / 2;
+        ceiling.position.set(0, 3, -9.5);
+        sceneManager.add(ceiling, false);
+
+        // Fluorescent light panels (emissive)
+        const lightPanelMat = this._tracker.createMaterial(THREE.MeshStandardMaterial, {
+            color: 0xffffff,
+            emissive: 0xffffee,
+            emissiveIntensity: 0.6,
+            roughness: 0.3,
+        });
+
+        for (const x of [-1.5, 0, 1.5]) {
+            const panel = new THREE.Mesh(
+                new THREE.BoxGeometry(1.2, 0.03, 0.3),
+                lightPanelMat
+            );
+            panel.position.set(x, 2.95, -9.5);
+            sceneManager.add(panel, false);
+        }
+
+        // Customer service counter silhouette
+        const counterMat = this._tracker.createMaterial(THREE.MeshStandardMaterial, {
+            color: 0x444444,
+            roughness: 0.8,
+        });
+        const counter = new THREE.Mesh(
+            new THREE.BoxGeometry(2, 1, 0.5),
+            counterMat
+        );
+        counter.position.set(0, 0.5, -11);
+        sceneManager.add(counter, false);
+
+        // Checkout lane silhouette (left side)
+        const checkoutMat = this._tracker.createMaterial(THREE.MeshStandardMaterial, {
+            color: 0x333333,
+            roughness: 0.85,
+        });
+        const checkout = new THREE.Mesh(
+            new THREE.BoxGeometry(3, 0.8, 1),
+            checkoutMat
+        );
+        checkout.position.set(-5, 0.4, -11);
+        sceneManager.add(checkout, false);
+
+        // Cart stack suggestion
+        const cartStackMat = this._tracker.createMaterial(THREE.MeshStandardMaterial, {
+            color: 0xcccccc,
+            roughness: 0.4,
+            metalness: 0.8,
+        });
+        for (let i = 0; i < 3; i++) {
+            const cart = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.8, 0.6),
+                cartStackMat
+            );
+            cart.position.set(4, 0.4 + i * 0.05, -11);
+            sceneManager.add(cart, false);
+        }
+
+        // Interior wall signage
+        const interiorSignTexture = createSignTexture('WELCOME', '', {
+            width: 256,
+            height: 64,
+            bgColor: '#cc2200',
+            textColor: '#ffffff',
+        });
+        const interiorSign = new THREE.Mesh(
+            new THREE.PlaneGeometry(2, 0.5),
+            this._tracker.createMaterial(THREE.MeshStandardMaterial, {
+                map: interiorSignTexture,
+                emissive: 0xff2200,
+                emissiveIntensity: 0.1,
+            })
+        );
+        interiorSign.position.set(0, 2.5, -11.9);
+        sceneManager.add(interiorSign, false);
+
+        // Back wall
+        const backWall = new THREE.Mesh(
+            new THREE.PlaneGeometry(20, 5),
+            interiorMat
+        );
+        backWall.position.set(0, 2.5, -12);
+        sceneManager.add(backWall, false);
+    }
+
     _placeVehicles(sceneManager) {
-        const factory = new VehicleFactory(this._materials);
-        this._disposables.push(factory);
+        this._vehicleFactory = new VehicleFactory(this._materials, this._tracker);
         const rng = seededRandom(99);
 
-        // Parking rows: rowZ = [-2 (north-facing), 4 (south-facing)]
-        // Stalls from x = -8 to 8, spacing 2.8
         const stallWidth = 2.8;
         const startX = -8;
 
-        // Vehicle type distribution
         const vehicleTypes = ['sedan', 'sedan', 'sedan', 'suv', 'suv', 'pickup', 'minivan'];
-
-        // Occupancy pattern (1 = parked, 0 = empty)
-        // Denser near entrance, sparser farther out
-        const northRowOccupancy = [1, 1, 0, 1, 1, 1, 0, 1];  // row at z = -2
-        const southRowOccupancy = [1, 1, 1, 0, 1, 1, 1, 0];  // row at z = 4
+        const northRowOccupancy = [1, 1, 0, 1, 1, 1, 0, 1];
+        const southRowOccupancy = [1, 1, 1, 0, 1, 1, 1, 0];
 
         const placeVehicle = (x, z, type, rotation, crooked = false) => {
             let vehicle;
             switch (type) {
-                case 'sedan': vehicle = factory.createSedan(rng); break;
-                case 'suv': vehicle = factory.createSUV(rng); break;
-                case 'pickup': vehicle = factory.createPickup(rng); break;
-                case 'minivan': vehicle = factory.createMinivan(rng); break;
-                default: vehicle = factory.createSedan(rng);
+                case 'sedan': vehicle = this._vehicleFactory.createSedan(rng); break;
+                case 'suv': vehicle = this._vehicleFactory.createSUV(rng); break;
+                case 'pickup': vehicle = this._vehicleFactory.createPickup(rng); break;
+                case 'minivan': vehicle = this._vehicleFactory.createMinivan(rng); break;
+                default: vehicle = this._vehicleFactory.createSedan(rng);
             }
-            vehicle.rotation.y = rotation;
-            if (crooked) {
-                vehicle.rotation.y += (rng() - 0.5) * 0.15;
-            }
+            vehicle.rotation.y = crooked ? rotation + (rng() - 0.5) * 0.15 : rotation;
             vehicle.position.set(x, 0, z);
             sceneManager.add(vehicle, false);
+            this._stats.vehicleCount++;
+
+            // Create collision proxy for vehicles near storefront
+            if (z >= -6 && z <= 8) {
+                const proxy = new THREE.Mesh(
+                    new THREE.CylinderGeometry(
+                        vehicle.userData.collisionRadius / 2,
+                        vehicle.userData.collisionRadius / 2,
+                        0.1,
+                        12
+                    ),
+                    new THREE.MeshBasicMaterial({ visible: false })
+                );
+                proxy.position.set(x, 0.5, z);
+                proxy.rotation.y = vehicle.rotation.y;
+                proxy.userData.isVehicleCollider = true;
+                proxy.userData.vehicleRef = vehicle;
+                sceneManager.add(proxy, false);
+                this._vehicleColliders.push(proxy);
+            }
         };
 
-        // North row (facing south, rotation = 0)
         for (let i = 0; i < northRowOccupancy.length; i++) {
             if (!northRowOccupancy[i]) continue;
             const x = startX + i * stallWidth + stallWidth / 2;
             const type = vehicleTypes[Math.floor(rng() * vehicleTypes.length)];
-            const crooked = rng() > 0.9;
-            placeVehicle(x, -4, type, 0, crooked);
+            placeVehicle(x, -4, type, 0, rng() > 0.9);
         }
 
-        // South row (facing north, rotation = PI)
         for (let i = 0; i < southRowOccupancy.length; i++) {
             if (!southRowOccupancy[i]) continue;
             const x = startX + i * stallWidth + stallWidth / 2;
             const type = vehicleTypes[Math.floor(rng() * vehicleTypes.length)];
-            const crooked = rng() > 0.85;
-            placeVehicle(x, 6, type, Math.PI, crooked);
+            placeVehicle(x, 6, type, Math.PI, rng() > 0.85);
         }
 
-        // Additional cars on sides
         const sideVehicles = [
             { x: -14, z: -2, type: 'suv', rot: Math.PI / 2 },
             { x: -14, z: 2, type: 'pickup', rot: Math.PI / 2 },
@@ -179,42 +386,52 @@ export class TestLevel extends Level {
             placeVehicle(v.x, v.z, v.type, v.rot);
         }
 
-        // One car taking up 1.4 spaces (tiny joke)
+        // One car taking up 1.4 spaces
         placeVehicle(6, -4, 'pickup', 0, true);
     }
 
     _placeCarts(sceneManager) {
-        const cartFactory = new ShoppingCart(this._materials);
-        this._disposables.push(cartFactory);
+        this._cartFactory = new ShoppingCart(this._materials, this._tracker);
 
-        // Parked cart clusters near cart returns
-        const cartReturn1 = new CartReturn(this._materials, cartFactory);
+        const cartReturn1 = new CartReturn(this._materials, this._cartFactory, this._tracker);
         cartReturn1.group.position.set(-8, 0, -6);
+        this._tracker.trackObject(cartReturn1.group);
         sceneManager.add(cartReturn1.group, false);
 
-        const cartReturn2 = new CartReturn(this._materials, cartFactory);
+        const cartReturn2 = new CartReturn(this._materials, this._cartFactory, this._tracker);
         cartReturn2.group.position.set(8, 0, -6);
+        this._tracker.trackObject(cartReturn2.group);
         sceneManager.add(cartReturn2.group, false);
 
-        // Stray carts
+        // Stray carts (one will be the rolling cart)
         const strayCartPositions = [
-            { x: -5, z: -1, rot: 0.3 },
-            { x: 3, z: 2, rot: -0.2 },
-            { x: 10, z: 0, rot: 0.5 },
+            { x: -5, z: -1, rot: 0.3, rolling: true },
+            { x: 3, z: 2, rot: -0.2, rolling: false },
+            { x: 10, z: 0, rot: 0.5, rolling: false },
         ];
         for (const cp of strayCartPositions) {
-            const cart = cartFactory.create();
+            const cart = this._cartFactory.create();
             cart.position.set(cp.x, 0, cp.z);
             cart.rotation.y = cp.rot;
             sceneManager.add(cart, false);
+            this._stats.cartCount++;
+
+            if (cp.rolling) {
+                this._rollingCart = cart;
+                this._rollingCartState = {
+                    velocity: 0,
+                    direction: cp.rot,
+                    paused: 2 + Math.random() * 3,
+                    phase: 'moving',
+                };
+            }
         }
     }
 
     _placeLandscaping(sceneManager) {
-        const landscaping = new Landscaping(this._materials);
+        this._landscaping = new Landscaping(this._materials, this._tracker);
         const rng = seededRandom(77);
 
-        // Landscape islands
         const islands = [
             { x: -12, z: 0, w: 3, d: 4, trees: 1 },
             { x: 12, z: 0, w: 3, d: 4, trees: 1 },
@@ -224,51 +441,53 @@ export class TestLevel extends Level {
         ];
 
         for (const island of islands) {
-            const group = landscaping.createLandscapeIsland(
+            const group = this._landscaping.createLandscapeIsland(
                 island.x, island.z, island.w, island.d,
-                { treeCount: island.trees, hasShrubs: true }
+                { treeCount: island.trees, hasShrubs: true, rng }
             );
+            this._tracker.trackObject(group);
             sceneManager.add(group, false);
+
+            // Collect tree references for sway
+            group.traverse((child) => {
+                if (child.isGroup || (child.isMesh && child.geometry?.type === 'CylinderGeometry' && child.position.y > 1)) {
+                    // Trunk reference - find parent group for sway
+                    const treeGroup = child.parent?.parent || child.parent;
+                    if (treeGroup && !this._trees.includes(treeGroup)) {
+                        this._trees.push({
+                            group: treeGroup,
+                            baseRotation: treeGroup.rotation.clone(),
+                            phase: Math.random() * Math.PI * 2,
+                            freq: 0.3 + Math.random() * 0.2,
+                            amplitude: 0.005 + Math.random() * 0.005,
+                        });
+                        this._stats.treeCount++;
+                    }
+                }
+            });
         }
 
         // Distant tree line
-        const treeLine = landscaping.createTreeLine(-30, -35, 20, 3, rng);
+        const treeLine = this._landscaping.createTreeLine(-30, -35, 20, 3, rng);
+        this._tracker.trackObject(treeLine);
         sceneManager.add(treeLine, false);
     }
 
     _placeLightPoles(sceneManager) {
-        const landscaping = new Landscaping(this._materials);
-
-        const polePositions = [
-            [-10, -4],
-            [10, -4],
-            [-10, 4],
-            [10, 4],
-            [0, 10],
-        ];
-
+        const polePositions = [[-10, -4], [10, -4], [-10, 4], [10, 4], [0, 10]];
         for (const [x, z] of polePositions) {
-            const pole = landscaping.createLightPole(x, z);
+            const pole = this._landscaping.createLightPole(x, z);
+            this._tracker.trackObject(pole);
             sceneManager.add(pole, false);
         }
     }
 
     _placeProps(sceneManager) {
-        const concreteMat = this.materials?.get('concrete') || this._materials.get('concrete');
-        const metalMat = this.materials?.get('metalDark') || this._materials.get('metalDark');
-
-        // Trash cans
-        const trashCanPositions = [
-            [-3, -6.5],
-            [3, -6.5],
-            [-8, -6],
-            [8, -6],
-        ];
+        const metalMat = this._materials.get('metalDark');
+        const trashCanPositions = [[-3, -6.5], [3, -6.5], [-8, -6], [8, -6]];
 
         for (const [x, z] of trashCanPositions) {
             const trashCan = new THREE.Group();
-
-            // Can body
             const canBody = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.25, 0.22, 0.7, 8),
                 metalMat
@@ -277,10 +496,9 @@ export class TestLevel extends Level {
             canBody.castShadow = true;
             trashCan.add(canBody);
 
-            // Lid
             const lid = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.27, 0.27, 0.04, 8),
-                new THREE.MeshStandardMaterial({
+                this._tracker.createMaterial(THREE.MeshStandardMaterial, {
                     color: 0x225522,
                     roughness: 0.7,
                 })
@@ -289,76 +507,55 @@ export class TestLevel extends Level {
             trashCan.add(lid);
 
             trashCan.position.set(x + (Math.random() - 0.5) * 0.2, 0, z);
+            this._tracker.trackObject(trashCan);
             sceneManager.add(trashCan, false);
         }
 
-        // Bench near entrance
-        const bench = new THREE.Group();
-        const woodMat = new THREE.MeshStandardMaterial({
+        // Bench
+        const woodMat = this._tracker.createMaterial(THREE.MeshStandardMaterial, {
             color: 0x886644,
             roughness: 0.8,
         });
-
-        // Seat
-        const seat = new THREE.Mesh(
-            new THREE.BoxGeometry(1.5, 0.06, 0.4),
-            woodMat
-        );
+        const bench = new THREE.Group();
+        const seat = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.06, 0.4), woodMat);
         seat.position.y = 0.45;
         seat.castShadow = true;
         bench.add(seat);
 
-        // Back
-        const back = new THREE.Mesh(
-            new THREE.BoxGeometry(1.5, 0.5, 0.05),
-            woodMat
-        );
+        const back = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.5, 0.05), woodMat);
         back.position.set(0, 0.7, -0.18);
         back.castShadow = true;
         bench.add(back);
 
-        // Legs
         for (const x of [-0.6, 0.6]) {
-            const leg = new THREE.Mesh(
-                new THREE.BoxGeometry(0.06, 0.45, 0.35),
-                metalMat
-            );
+            const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.45, 0.35), metalMat);
             leg.position.set(x, 0.225, 0);
             leg.castShadow = true;
             bench.add(leg);
         }
-
         bench.position.set(5, 0, -6.5);
         bench.rotation.y = Math.PI / 6;
+        this._tracker.trackObject(bench);
         sceneManager.add(bench, false);
 
-        // Planter near entrance
-        const planter = new THREE.Group();
-        const planterMat = new THREE.MeshStandardMaterial({
+        // Planter with dead plant
+        const planterMat = this._tracker.createMaterial(THREE.MeshStandardMaterial, {
             color: 0x996644,
             roughness: 0.9,
         });
-
-        const planterBox = new THREE.Mesh(
-            new THREE.BoxGeometry(1, 0.5, 1),
-            planterMat
-        );
+        const planter = new THREE.Group();
+        const planterBox = new THREE.Mesh(new THREE.BoxGeometry(1, 0.5, 1), planterMat);
         planterBox.position.y = 0.25;
         planterBox.castShadow = true;
         planter.add(planterBox);
 
-        // Empty soil
-        const soil = new THREE.Mesh(
-            new THREE.BoxGeometry(0.9, 0.05, 0.9),
-            this._materials.get('mulch')
-        );
+        const soil = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.05, 0.9), this._materials.get('mulch'));
         soil.position.y = 0.5;
         planter.add(soil);
 
-        // Dead/dry plant suggestion
         const deadPlant = new THREE.Mesh(
             new THREE.CylinderGeometry(0.02, 0.01, 0.4, 4),
-            new THREE.MeshStandardMaterial({
+            this._tracker.createMaterial(THREE.MeshStandardMaterial, {
                 color: 0x888844,
                 roughness: 0.95,
             })
@@ -368,47 +565,44 @@ export class TestLevel extends Level {
         planter.add(deadPlant);
 
         planter.position.set(-5, 0, -6.5);
+        this._tracker.trackObject(planter);
         sceneManager.add(planter, false);
     }
 
     _placeSigns(sceneManager) {
-        const signFactory = new SignFactory(this._materials);
+        this._signFactory = new SignFactory(this._materials, this._tracker);
 
-        // Stop sign at entrance
-        const stopSign = signFactory.createStopSign(4, 16, -Math.PI / 4);
+        const stopSign = this._signFactory.createStopSign(4, 16, -Math.PI / 4);
+        this._tracker.trackObject(stopSign);
         sceneManager.add(stopSign, false);
 
-        // Fire lane signs
-        const fireSign1 = signFactory.createFireLaneSign(-10, -7, 0);
+        const fireSign1 = this._signFactory.createFireLaneSign(-10, -7, 0);
+        this._tracker.trackObject(fireSign1);
         sceneManager.add(fireSign1, false);
-        const fireSign2 = signFactory.createFireLaneSign(10, -7, 0);
+
+        const fireSign2 = this._signFactory.createFireLaneSign(10, -7, 0);
+        this._tracker.trackObject(fireSign2);
         sceneManager.add(fireSign2, false);
 
-        // Accessible parking sign
-        const accessibleSign = signFactory.createAccessibleParkingSign(-2, -6.5, 0);
+        const accessibleSign = this._signFactory.createAccessibleParkingSign(-2, -6.5, 0);
+        this._tracker.trackObject(accessibleSign);
         sceneManager.add(accessibleSign, false);
 
-        // Directional arrow
-        const arrowSign = signFactory.createDirectionalArrow(-12, 10, 'left', 'PARKING →');
+        const arrowSign = this._signFactory.createDirectionalArrow(-12, 10, 'left', 'PARKING →');
+        this._tracker.trackObject(arrowSign);
         sceneManager.add(arrowSign, false);
     }
 
     _buildHorizon(sceneManager) {
         const rng = seededRandom(55);
-        const silhouetteMat = new THREE.MeshStandardMaterial({
-            color: 0x556655,
-            roughness: 0.9,
-            metalness: 0,
-        });
 
-        // Distant retail boxes
         for (let i = 0; i < 6; i++) {
             const w = 8 + rng() * 12;
             const h = 5 + rng() * 8;
             const d = 6 + rng() * 8;
             const building = new THREE.Mesh(
                 new THREE.BoxGeometry(w, h, d),
-                new THREE.MeshStandardMaterial({
+                this._tracker.createMaterial(THREE.MeshStandardMaterial, {
                     color: new THREE.Color(0.4 + rng() * 0.15, 0.4 + rng() * 0.1, 0.35 + rng() * 0.1),
                     roughness: 0.85,
                     metalness: 0.05,
@@ -421,13 +615,12 @@ export class TestLevel extends Level {
 
         // Water tower
         const towerGroup = new THREE.Group();
-        const towerMat = new THREE.MeshStandardMaterial({
+        const towerMat = this._tracker.createMaterial(THREE.MeshStandardMaterial, {
             color: 0x888888,
             roughness: 0.7,
             metalness: 0.3,
         });
 
-        // Support legs
         for (let i = 0; i < 4; i++) {
             const leg = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.1, 0.15, 15, 6),
@@ -440,10 +633,9 @@ export class TestLevel extends Level {
             towerGroup.add(leg);
         }
 
-        // Tank
         const tank = new THREE.Mesh(
             new THREE.SphereGeometry(3, 12, 8),
-            new THREE.MeshStandardMaterial({
+            this._tracker.createMaterial(THREE.MeshStandardMaterial, {
                 color: 0x6688aa,
                 roughness: 0.6,
                 metalness: 0.2,
@@ -454,13 +646,14 @@ export class TestLevel extends Level {
         towerGroup.add(tank);
 
         towerGroup.position.set(25, 0, -35);
+        this._tracker.trackObject(towerGroup);
         sceneManager.add(towerGroup, false);
 
         // Utility poles
         for (let i = 0; i < 5; i++) {
             const pole = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.05, 0.07, 8, 6),
-                new THREE.MeshStandardMaterial({
+                this._tracker.createMaterial(THREE.MeshStandardMaterial, {
                     color: 0x664422,
                     roughness: 0.9,
                 })
@@ -469,10 +662,9 @@ export class TestLevel extends Level {
             pole.castShadow = true;
             sceneManager.add(pole, false);
 
-            // Cross bar
             const crossBar = new THREE.Mesh(
                 new THREE.BoxGeometry(2, 0.06, 0.06),
-                new THREE.MeshStandardMaterial({
+                this._tracker.createMaterial(THREE.MeshStandardMaterial, {
                     color: 0x664422,
                     roughness: 0.9,
                 })
@@ -482,8 +674,156 @@ export class TestLevel extends Level {
         }
     }
 
-    _addAtmosphericFog(sceneManager) {
-        sceneManager.scene.fog = new THREE.FogExp2(0xccddbb, 0.008);
+    _buildDistantVehicle(sceneManager) {
+        // Low-detail distant car for perimeter road motion
+        const bodyMat = this._tracker.createMaterial(THREE.MeshStandardMaterial, {
+            color: 0x446688,
+            roughness: 0.5,
+            metalness: 0.3,
+        });
+
+        this._distantVehicle = new THREE.Group();
+
+        const body = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.6, 3), bodyMat);
+        body.position.y = 0.5;
+        body.castShadow = true;
+        this._distantVehicle.add(body);
+
+        const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.5, 1.5), bodyMat);
+        cabin.position.set(0, 0.9, -0.3);
+        this._distantVehicle.add(cabin);
+
+        const wheelGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.15, 8);
+        for (const [x, z] of [[-0.6, 1], [0.6, 1], [-0.6, -1], [0.6, -1]]) {
+            const wheel = new THREE.Mesh(wheelGeo, this._materials.get('rubber'));
+            wheel.rotation.x = Math.PI / 2;
+            wheel.position.set(x, 0.25, z);
+            this._distantVehicle.add(wheel);
+        }
+
+        this._distantVehicleT = 0;
+        this._tracker.trackObject(this._distantVehicle);
+        sceneManager.add(this._distantVehicle, false);
+    }
+
+    update(delta, playerPosition) {
+        if (!playerPosition) return;
+
+        this._updateDoors(delta, playerPosition);
+        this._updateTreeSway(delta);
+        this._updateRollingCart(delta);
+        this._updateDistantVehicle(delta);
+        this._updateHVAC(delta);
+    }
+
+    _updateDoors(delta, playerPosition) {
+        if (!this._doors.left || !this._doors.right) return;
+
+        const distToEntrance = Math.sqrt(
+            playerPosition.x * playerPosition.x +
+            (playerPosition.z + 9) * (playerPosition.z + 9)
+        );
+
+        const threshold = 6;
+        const closeDelay = 2;
+
+        if (distToEntrance < threshold) {
+            this._doors.target = 1;
+            this._doors.timer = 0;
+        } else if (this._doors.target > 0) {
+            this._doors.timer += delta;
+            if (this._doors.timer > closeDelay) {
+                this._doors.target = 0;
+            }
+        }
+
+        const openAmount = 1.2;
+        const speed = 3;
+
+        if (this._doors.left) {
+            const currentLeft = this._doors.left.position.x;
+            const targetLeft = this._doors.leftBaseX - openAmount * this._doors.target;
+            this._doors.left.position.x += (targetLeft - currentLeft) * Math.min(speed * delta, 1);
+        }
+        if (this._doors.right) {
+            const currentRight = this._doors.right.position.x;
+            const targetRight = this._doors.rightBaseX + openAmount * this._doors.target;
+            this._doors.right.position.x += (targetRight - currentRight) * Math.min(speed * delta, 1);
+        }
+    }
+
+    _updateTreeSway(delta) {
+        for (const tree of this._trees) {
+            tree.phase += delta * tree.freq;
+            tree.group.rotation.z = tree.baseRotation.z + Math.sin(tree.phase) * tree.amplitude;
+        }
+    }
+
+    _updateRollingCart(delta) {
+        if (!this._rollingCart) return;
+
+        if (this._rollingCartState.paused > 0) {
+            this._rollingCartState.paused -= delta;
+            return;
+        }
+
+        if (this._rollingCartState.phase === 'moving') {
+            this._rollingCartState.velocity = 0.3;
+            this._rollingCartState.phase = 'slowing';
+        } else if (this._rollingCartState.phase === 'slowing') {
+            this._rollingCartState.velocity *= 0.98;
+            if (this._rollingCartState.velocity < 0.01) {
+                this._rollingCartState.velocity = 0;
+                this._rollingCartState.paused = 3 + Math.random() * 4;
+                this._rollingCartState.phase = 'paused';
+            }
+        } else if (this._rollingCartState.phase === 'paused') {
+            if (this._rollingCartState.paused <= 0) {
+                this._rollingCartState.direction += (Math.random() - 0.5) * 0.3;
+                this._rollingCartState.phase = 'moving';
+            }
+            return;
+        }
+
+        this._rollingCart.position.x += Math.cos(this._rollingCartState.direction) * this._rollingCartState.velocity * delta;
+        this._rollingCart.position.z += Math.sin(this._rollingCartState.direction) * this._rollingCartState.velocity * delta;
+        this._rollingCart.rotation.y = this._rollingCartState.direction;
+
+        // Slight wobble
+        this._rollingCart.rotation.z = Math.sin(performance.now() * 0.005) * 0.02;
+    }
+
+    _updateDistantVehicle(delta) {
+        if (!this._distantVehicle) return;
+
+        this._distantVehicleT += delta * 0.15;
+
+        // Path along south access road (z ≈ 20, x from 25 to -15 and back)
+        const x = 25 - (this._distantVehicleT % 80) * 0.5;
+        const z = 20;
+
+        this._distantVehicle.position.set(x, 0, z);
+        this._distantVehicle.rotation.y = Math.PI; // Facing west
+    }
+
+    _updateHVAC(delta) {
+        // Subtle fan rotation suggestion via slight scale oscillation
+        const time = performance.now() * 0.001;
+        for (const hvac of this._hvacFans) {
+            hvac.mesh.scale.x = 1 + Math.sin(time + hvac.phase) * 0.02;
+            hvac.mesh.scale.z = 1 + Math.cos(time + hvac.phase) * 0.02;
+        }
+    }
+
+    getVehicleColliders() {
+        return this._vehicleColliders;
+    }
+
+    getStats() {
+        return {
+            ...this._stats,
+            ...this._tracker?.getStats() || {},
+        };
     }
 
     getSpawnDefinitions() {
@@ -517,5 +857,26 @@ export class TestLevel extends Level {
                 orientation: Math.PI / 4,
             }),
         ];
+    }
+
+    dispose() {
+        if (this._tracker) {
+            this._tracker.dispose();
+        }
+        if (this._materials) {
+            this._materials.dispose();
+        }
+        if (this._vehicleFactory) {
+            this._vehicleFactory.dispose();
+        }
+        if (this._cartFactory) {
+            this._cartFactory.dispose();
+        }
+        this._doors = { left: null, right: null, state: 'closed', timer: 0, target: 0 };
+        this._trees = [];
+        this._rollingCart = null;
+        this._distantVehicle = null;
+        this._vehicleColliders = [];
+        this._hvacFans = [];
     }
 }
