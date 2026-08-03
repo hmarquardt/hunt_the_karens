@@ -3,30 +3,66 @@ import { Level } from './Level.js';
 import { ManagerKaren } from '../karens/ManagerKaren.js';
 import { HOAKaren } from '../karens/HOAKaren.js';
 import { SpawnDefinition } from '../systems/SpawnDirector.js';
+import { EnvironmentMaterials } from '../environment/EnvironmentMaterials.js';
+import { MegaMartStore } from '../environment/MegaMartStore.js';
+import { ParkingLot } from '../environment/ParkingLot.js';
+import { VehicleFactory } from '../environment/VehicleFactory.js';
+import { ShoppingCart, CartReturn } from '../environment/ShoppingCart.js';
+import { Landscaping } from '../environment/Landscaping.js';
+import { SignFactory } from '../environment/SignFactory.js';
+
+function seededRandom(seed) {
+    let s = seed;
+    return () => {
+        s = (s * 16807 + 0) % 2147483647;
+        return (s - 1) / 2147483646;
+    };
+}
 
 export class TestLevel extends Level {
     constructor(assetManager) {
         super();
-        this.name = 'Test Level - Suburban Retail';
-        this.spawnPoint = new THREE.Vector3(0, 0, 10);
+        this.name = 'MEGA MART - Suburban Retail Parking Lot';
+        this.spawnPoint = new THREE.Vector3(0, 1.6, 12);
         this.assetManager = assetManager;
-        this.spawnDirector = null;
+        this._materials = null;
+        this._disposables = [];
     }
 
     async build(sceneManager) {
+        this._materials = new EnvironmentMaterials();
+
         this._setupLighting(sceneManager);
         this._setupSky(sceneManager);
-        this._setupGround(sceneManager);
-        this._setupEnvironment(sceneManager);
+
+        const parkingLot = new ParkingLot(this._materials);
+        parkingLot.build(sceneManager);
+        this._disposables.push(parkingLot.asphaltTexture, parkingLot.concreteTexture);
+
+        const store = new MegaMartStore(this._materials);
+        sceneManager.add(store.getGroup(), false);
+        for (const mesh of store.getCollisionMeshes()) {
+            sceneManager.add(mesh, true);
+        }
+
+        this._placeVehicles(sceneManager);
+        this._placeCarts(sceneManager);
+        this._placeLandscaping(sceneManager);
+        this._placeLightPoles(sceneManager);
+        this._placeProps(sceneManager);
+        this._placeSigns(sceneManager);
+        this._buildHorizon(sceneManager);
+        this._addAtmosphericFog(sceneManager);
+
+        this._parkingLot = parkingLot;
     }
 
     _setupSky(sceneManager) {
-        // Gradient sky dome
         const skyGeo = new THREE.SphereGeometry(80, 32, 16);
         const skyMat = new THREE.ShaderMaterial({
             uniforms: {
-                topColor: { value: new THREE.Color(0x4488cc) },
-                bottomColor: { value: new THREE.Color(0xccddaa) },
+                topColor: { value: new THREE.Color(0x5588bb) },
+                bottomColor: { value: new THREE.Color(0xddccaa) },
                 offset: { value: 10 },
                 exponent: { value: 0.4 },
             },
@@ -53,574 +89,432 @@ export class TestLevel extends Level {
         });
         const sky = new THREE.Mesh(skyGeo, skyMat);
         sceneManager.add(sky, false);
-
-        // Distant tree/building silhouettes
-        this._buildDistantSilhouettes(sceneManager);
     }
 
-    _buildDistantSilhouettes(sceneManager) {
+    _setupLighting(sceneManager) {
+        const ambient = new THREE.AmbientLight(0x6688aa, 0.6);
+        sceneManager.add(ambient, false);
+
+        const hemi = new THREE.HemisphereLight(0x88aacc, 0x444422, 0.5);
+        sceneManager.add(hemi, false);
+
+        const sun = new THREE.DirectionalLight(0xffeedd, 1.2);
+        sun.position.set(15, 20, 10);
+        sun.castShadow = true;
+        sun.shadow.mapSize.width = 2048;
+        sun.shadow.mapSize.height = 2048;
+        sun.shadow.camera.near = 0.5;
+        sun.shadow.camera.far = 80;
+        sun.shadow.camera.left = -30;
+        sun.shadow.camera.right = 30;
+        sun.shadow.camera.top = 30;
+        sun.shadow.camera.bottom = -30;
+        sun.shadow.bias = -0.001;
+        sceneManager.add(sun, false);
+        sceneManager.add(sun.target, false);
+    }
+
+    _placeVehicles(sceneManager) {
+        const factory = new VehicleFactory(this._materials);
+        this._disposables.push(factory);
+        const rng = seededRandom(99);
+
+        // Parking rows: rowZ = [-2 (north-facing), 4 (south-facing)]
+        // Stalls from x = -8 to 8, spacing 2.8
+        const stallWidth = 2.8;
+        const startX = -8;
+
+        // Vehicle type distribution
+        const vehicleTypes = ['sedan', 'sedan', 'sedan', 'suv', 'suv', 'pickup', 'minivan'];
+
+        // Occupancy pattern (1 = parked, 0 = empty)
+        // Denser near entrance, sparser farther out
+        const northRowOccupancy = [1, 1, 0, 1, 1, 1, 0, 1];  // row at z = -2
+        const southRowOccupancy = [1, 1, 1, 0, 1, 1, 1, 0];  // row at z = 4
+
+        const placeVehicle = (x, z, type, rotation, crooked = false) => {
+            let vehicle;
+            switch (type) {
+                case 'sedan': vehicle = factory.createSedan(rng); break;
+                case 'suv': vehicle = factory.createSUV(rng); break;
+                case 'pickup': vehicle = factory.createPickup(rng); break;
+                case 'minivan': vehicle = factory.createMinivan(rng); break;
+                default: vehicle = factory.createSedan(rng);
+            }
+            vehicle.rotation.y = rotation;
+            if (crooked) {
+                vehicle.rotation.y += (rng() - 0.5) * 0.15;
+            }
+            vehicle.position.set(x, 0, z);
+            sceneManager.add(vehicle, false);
+        };
+
+        // North row (facing south, rotation = 0)
+        for (let i = 0; i < northRowOccupancy.length; i++) {
+            if (!northRowOccupancy[i]) continue;
+            const x = startX + i * stallWidth + stallWidth / 2;
+            const type = vehicleTypes[Math.floor(rng() * vehicleTypes.length)];
+            const crooked = rng() > 0.9;
+            placeVehicle(x, -4, type, 0, crooked);
+        }
+
+        // South row (facing north, rotation = PI)
+        for (let i = 0; i < southRowOccupancy.length; i++) {
+            if (!southRowOccupancy[i]) continue;
+            const x = startX + i * stallWidth + stallWidth / 2;
+            const type = vehicleTypes[Math.floor(rng() * vehicleTypes.length)];
+            const crooked = rng() > 0.85;
+            placeVehicle(x, 6, type, Math.PI, crooked);
+        }
+
+        // Additional cars on sides
+        const sideVehicles = [
+            { x: -14, z: -2, type: 'suv', rot: Math.PI / 2 },
+            { x: -14, z: 2, type: 'pickup', rot: Math.PI / 2 },
+            { x: 14, z: -2, type: 'minivan', rot: -Math.PI / 2 },
+            { x: 14, z: 2, type: 'sedan', rot: -Math.PI / 2 },
+            { x: 14, z: 6, type: 'suv', rot: -Math.PI / 2 },
+        ];
+        for (const v of sideVehicles) {
+            placeVehicle(v.x, v.z, v.type, v.rot);
+        }
+
+        // One car taking up 1.4 spaces (tiny joke)
+        placeVehicle(6, -4, 'pickup', 0, true);
+    }
+
+    _placeCarts(sceneManager) {
+        const cartFactory = new ShoppingCart(this._materials);
+        this._disposables.push(cartFactory);
+
+        // Parked cart clusters near cart returns
+        const cartReturn1 = new CartReturn(this._materials, cartFactory);
+        cartReturn1.group.position.set(-8, 0, -6);
+        sceneManager.add(cartReturn1.group, false);
+
+        const cartReturn2 = new CartReturn(this._materials, cartFactory);
+        cartReturn2.group.position.set(8, 0, -6);
+        sceneManager.add(cartReturn2.group, false);
+
+        // Stray carts
+        const strayCartPositions = [
+            { x: -5, z: -1, rot: 0.3 },
+            { x: 3, z: 2, rot: -0.2 },
+            { x: 10, z: 0, rot: 0.5 },
+        ];
+        for (const cp of strayCartPositions) {
+            const cart = cartFactory.create();
+            cart.position.set(cp.x, 0, cp.z);
+            cart.rotation.y = cp.rot;
+            sceneManager.add(cart, false);
+        }
+    }
+
+    _placeLandscaping(sceneManager) {
+        const landscaping = new Landscaping(this._materials);
+        const rng = seededRandom(77);
+
+        // Landscape islands
+        const islands = [
+            { x: -12, z: 0, w: 3, d: 4, trees: 1 },
+            { x: 12, z: 0, w: 3, d: 4, trees: 1 },
+            { x: 0, z: 8, w: 4, d: 3, trees: 2 },
+            { x: -6, z: 8, w: 3, d: 3, trees: 1 },
+            { x: 6, z: 8, w: 3, d: 3, trees: 1 },
+        ];
+
+        for (const island of islands) {
+            const group = landscaping.createLandscapeIsland(
+                island.x, island.z, island.w, island.d,
+                { treeCount: island.trees, hasShrubs: true }
+            );
+            sceneManager.add(group, false);
+        }
+
+        // Distant tree line
+        const treeLine = landscaping.createTreeLine(-30, -35, 20, 3, rng);
+        sceneManager.add(treeLine, false);
+    }
+
+    _placeLightPoles(sceneManager) {
+        const landscaping = new Landscaping(this._materials);
+
+        const polePositions = [
+            [-10, -4],
+            [10, -4],
+            [-10, 4],
+            [10, 4],
+            [0, 10],
+        ];
+
+        for (const [x, z] of polePositions) {
+            const pole = landscaping.createLightPole(x, z);
+            sceneManager.add(pole, false);
+        }
+    }
+
+    _placeProps(sceneManager) {
+        const concreteMat = this.materials?.get('concrete') || this._materials.get('concrete');
+        const metalMat = this.materials?.get('metalDark') || this._materials.get('metalDark');
+
+        // Trash cans
+        const trashCanPositions = [
+            [-3, -6.5],
+            [3, -6.5],
+            [-8, -6],
+            [8, -6],
+        ];
+
+        for (const [x, z] of trashCanPositions) {
+            const trashCan = new THREE.Group();
+
+            // Can body
+            const canBody = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.25, 0.22, 0.7, 8),
+                metalMat
+            );
+            canBody.position.y = 0.35;
+            canBody.castShadow = true;
+            trashCan.add(canBody);
+
+            // Lid
+            const lid = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.27, 0.27, 0.04, 8),
+                new THREE.MeshStandardMaterial({
+                    color: 0x225522,
+                    roughness: 0.7,
+                })
+            );
+            lid.position.y = 0.72;
+            trashCan.add(lid);
+
+            trashCan.position.set(x + (Math.random() - 0.5) * 0.2, 0, z);
+            sceneManager.add(trashCan, false);
+        }
+
+        // Bench near entrance
+        const bench = new THREE.Group();
+        const woodMat = new THREE.MeshStandardMaterial({
+            color: 0x886644,
+            roughness: 0.8,
+        });
+
+        // Seat
+        const seat = new THREE.Mesh(
+            new THREE.BoxGeometry(1.5, 0.06, 0.4),
+            woodMat
+        );
+        seat.position.y = 0.45;
+        seat.castShadow = true;
+        bench.add(seat);
+
+        // Back
+        const back = new THREE.Mesh(
+            new THREE.BoxGeometry(1.5, 0.5, 0.05),
+            woodMat
+        );
+        back.position.set(0, 0.7, -0.18);
+        back.castShadow = true;
+        bench.add(back);
+
+        // Legs
+        for (const x of [-0.6, 0.6]) {
+            const leg = new THREE.Mesh(
+                new THREE.BoxGeometry(0.06, 0.45, 0.35),
+                metalMat
+            );
+            leg.position.set(x, 0.225, 0);
+            leg.castShadow = true;
+            bench.add(leg);
+        }
+
+        bench.position.set(5, 0, -6.5);
+        bench.rotation.y = Math.PI / 6;
+        sceneManager.add(bench, false);
+
+        // Planter near entrance
+        const planter = new THREE.Group();
+        const planterMat = new THREE.MeshStandardMaterial({
+            color: 0x996644,
+            roughness: 0.9,
+        });
+
+        const planterBox = new THREE.Mesh(
+            new THREE.BoxGeometry(1, 0.5, 1),
+            planterMat
+        );
+        planterBox.position.y = 0.25;
+        planterBox.castShadow = true;
+        planter.add(planterBox);
+
+        // Empty soil
+        const soil = new THREE.Mesh(
+            new THREE.BoxGeometry(0.9, 0.05, 0.9),
+            this._materials.get('mulch')
+        );
+        soil.position.y = 0.5;
+        planter.add(soil);
+
+        // Dead/dry plant suggestion
+        const deadPlant = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.02, 0.01, 0.4, 4),
+            new THREE.MeshStandardMaterial({
+                color: 0x888844,
+                roughness: 0.95,
+            })
+        );
+        deadPlant.position.set(0.1, 0.7, 0.1);
+        deadPlant.rotation.z = 0.3;
+        planter.add(deadPlant);
+
+        planter.position.set(-5, 0, -6.5);
+        sceneManager.add(planter, false);
+    }
+
+    _placeSigns(sceneManager) {
+        const signFactory = new SignFactory(this._materials);
+
+        // Stop sign at entrance
+        const stopSign = signFactory.createStopSign(4, 16, -Math.PI / 4);
+        sceneManager.add(stopSign, false);
+
+        // Fire lane signs
+        const fireSign1 = signFactory.createFireLaneSign(-10, -7, 0);
+        sceneManager.add(fireSign1, false);
+        const fireSign2 = signFactory.createFireLaneSign(10, -7, 0);
+        sceneManager.add(fireSign2, false);
+
+        // Accessible parking sign
+        const accessibleSign = signFactory.createAccessibleParkingSign(-2, -6.5, 0);
+        sceneManager.add(accessibleSign, false);
+
+        // Directional arrow
+        const arrowSign = signFactory.createDirectionalArrow(-12, 10, 'left', 'PARKING →');
+        sceneManager.add(arrowSign, false);
+    }
+
+    _buildHorizon(sceneManager) {
+        const rng = seededRandom(55);
         const silhouetteMat = new THREE.MeshStandardMaterial({
             color: 0x556655,
             roughness: 0.9,
             metalness: 0,
         });
 
-        // Distant tree line
-        for (let i = -10; i <= 10; i++) {
-            const h = 2 + Math.random() * 3;
-            const treeGeo = new THREE.ConeGeometry(1 + Math.random(), h, 6);
-            const tree = new THREE.Mesh(treeGeo, silhouetteMat);
-            tree.position.set(i * 3, h / 2, -40 - Math.random() * 5);
-            sceneManager.add(tree, false);
-        }
-
-        // Distant commercial buildings
-        const buildingColors = [0x887766, 0x776655, 0x998877];
-        for (let i = 0; i < 4; i++) {
-            const w = 4 + Math.random() * 6;
-            const h = 3 + Math.random() * 5;
-            const d = 3 + Math.random() * 4;
-            const buildingGeo = new THREE.BoxGeometry(w, h, d);
-            const buildingMat = new THREE.MeshStandardMaterial({
-                color: buildingColors[i % buildingColors.length],
-                roughness: 0.85,
-                metalness: 0.05,
-            });
-            const building = new THREE.Mesh(buildingGeo, buildingMat);
-            building.position.set(-15 + i * 10, h / 2, -35 - Math.random() * 10);
+        // Distant retail boxes
+        for (let i = 0; i < 6; i++) {
+            const w = 8 + rng() * 12;
+            const h = 5 + rng() * 8;
+            const d = 6 + rng() * 8;
+            const building = new THREE.Mesh(
+                new THREE.BoxGeometry(w, h, d),
+                new THREE.MeshStandardMaterial({
+                    color: new THREE.Color(0.4 + rng() * 0.15, 0.4 + rng() * 0.1, 0.35 + rng() * 0.1),
+                    roughness: 0.85,
+                    metalness: 0.05,
+                })
+            );
+            building.position.set(-20 + i * 8, h / 2, -40 - rng() * 10);
+            building.castShadow = true;
             sceneManager.add(building, false);
         }
-    }
 
-    _setupEnvironment(sceneManager) {
-        this._buildParkingLot(sceneManager);
-        this._buildStorefront(sceneManager);
-        this._buildProps(sceneManager);
-        this._buildLandscaping(sceneManager);
-        this._buildCurbsAndSidewalks(sceneManager);
-        this._buildSignage(sceneManager);
-    }
-
-    _buildParkingLot(sceneManager) {
-        const lotGeo = new THREE.PlaneGeometry(24, 20);
-        const lotMat = new THREE.MeshStandardMaterial({
-            color: 0x555555,
-            roughness: 0.95,
-            metalness: 0,
-        });
-        const lot = new THREE.Mesh(lotGeo, lotMat);
-        lot.rotation.x = -Math.PI / 2;
-        lot.position.set(0, 0.01, 0);
-        lot.receiveShadow = true;
-        sceneManager.add(lot, true);
-
-        this._addParkingLines(sceneManager);
-        this._addParkingStops(sceneManager);
-    }
-
-    _addParkingLines(sceneManager) {
-        const lineMat = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
-            roughness: 0.8,
-            metalness: 0,
-        });
-
-        for (let row = -1; row <= 1; row += 2) {
-            for (let i = -3; i <= 3; i++) {
-                const lineGeo = new THREE.PlaneGeometry(0.12, 3.5);
-                const line = new THREE.Mesh(lineGeo, lineMat);
-                line.rotation.x = -Math.PI / 2;
-                line.position.set(i * 2.8, 0.02, row * 2);
-                line.receiveShadow = true;
-                sceneManager.add(line, false);
-            }
-        }
-
-        const arrowMat = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
-            roughness: 0.8,
-        });
-        for (let x of [-6, 0, 6]) {
-            const arrowGeo = new THREE.PlaneGeometry(0.3, 0.8);
-            const arrow = new THREE.Mesh(arrowGeo, arrowMat);
-            arrow.rotation.x = -Math.PI / 2;
-            arrow.rotation.z = Math.PI;
-            arrow.position.set(x, 0.02, 0);
-            sceneManager.add(arrow, false);
-        }
-    }
-
-    _addParkingStops(sceneManager) {
-        const stopMat = new THREE.MeshStandardMaterial({
-            color: 0x999999,
-            roughness: 0.9,
-            metalness: 0.1,
-        });
-
-        for (let row of [-2, 2]) {
-            for (let i = -3; i <= 3; i++) {
-                const stopGeo = new THREE.BoxGeometry(1.5, 0.1, 0.15);
-                const stop = new THREE.Mesh(stopGeo, stopMat);
-                stop.position.set(i * 2.8, 0.05, row + (row > 0 ? 0.5 : -0.5));
-                stop.castShadow = true;
-                stop.receiveShadow = true;
-                sceneManager.add(stop, true);
-            }
-        }
-    }
-
-    _buildStorefront(sceneManager) {
-        this.addBox(sceneManager, 0, 0, -10, 14, 4.5, 1.5, 0x8B6914, true);
-
-        this.addBox(sceneManager, 0, 0, -10.8, 14, 5, 0.3, 0xD2B48C, true);
-
-        this.addBox(sceneManager, 0, 3, -11, 8, 1, 0.3, 0xcc0000, false);
-
-        const signCanvas = document.createElement('canvas');
-        signCanvas.width = 512;
-        signCanvas.height = 128;
-        const ctx = signCanvas.getContext('2d');
-        ctx.fillStyle = '#cc0000';
-        ctx.fillRect(0, 0, 512, 128);
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 64px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('MEGA MART', 256, 64);
-
-        const signTexture = new THREE.CanvasTexture(signCanvas);
-        signTexture.needsUpdate = true;
-
-        const signGeo = new THREE.PlaneGeometry(6, 1.5);
-        const signMat = new THREE.MeshStandardMaterial({
-            map: signTexture,
-            emissive: 0xff0000,
-            emissiveIntensity: 0.1,
-        });
-        const sign = new THREE.Mesh(signGeo, signMat);
-        sign.position.set(0, 3, -10.9);
-        sceneManager.add(sign, false);
-
-        const windowMat = new THREE.MeshStandardMaterial({
-            color: 0x88ccff,
-            roughness: 0.1,
-            metalness: 0.8,
-            transparent: true,
-            opacity: 0.5,
-        });
-
-        for (let i = -2; i <= 2; i++) {
-            const winGeo = new THREE.PlaneGeometry(1.2, 1.8);
-            const win = new THREE.Mesh(winGeo, windowMat);
-            win.position.set(i * 2.5, 1.5, -9.2);
-            win.receiveShadow = true;
-            sceneManager.add(win, false);
-        }
-
-        const doorFrameGeo = new THREE.BoxGeometry(1.8, 2.6, 0.2);
-        const doorFrameMat = new THREE.MeshStandardMaterial({
-            color: 0x333333,
-            roughness: 0.4,
-            metalness: 0.6,
-        });
-        const doorFrame = new THREE.Mesh(doorFrameGeo, doorFrameMat);
-        doorFrame.position.set(0, 1.3, -9.2);
-        sceneManager.add(doorFrame, true);
-
-        const doorGeo = new THREE.PlaneGeometry(1.4, 2.4);
-        const doorMat = new THREE.MeshStandardMaterial({
-            color: 0x4488cc,
-            roughness: 0.3,
-            metalness: 0.5,
-        });
-        const door = new THREE.Mesh(doorGeo, doorMat);
-        door.position.set(0, 1.2, -9.1);
-        sceneManager.add(door, false);
-    }
-
-    _buildCurbsAndSidewalks(sceneManager) {
-        const curbMat = new THREE.MeshStandardMaterial({
-            color: 0x999999,
-            roughness: 0.85,
-            metalness: 0.05,
-        });
-
-        const sidewalkMat = new THREE.MeshStandardMaterial({
-            color: 0xbbbbbb,
-            roughness: 0.9,
-            metalness: 0,
-        });
-
-        this.addBox(sceneManager, 0, 0, -7.5, 16, 0.15, 2.5, 0xbbbbbb, true);
-
-        const longCurbGeo = new THREE.BoxGeometry(18, 0.15, 0.2);
-        const longCurb = new THREE.Mesh(longCurbGeo, curbMat);
-        longCurb.position.set(0, 0.075, -6.2);
-        longCurb.castShadow = true;
-        longCurb.receiveShadow = true;
-        sceneManager.add(longCurb, true);
-
-        for (let x of [-9, 9]) {
-            const sideCurbGeo = new THREE.BoxGeometry(0.2, 0.15, 20);
-            const sideCurb = new THREE.Mesh(sideCurbGeo, curbMat);
-            sideCurb.position.set(x, 0.075, 0);
-            sideCurb.castShadow = true;
-            sideCurb.receiveShadow = true;
-            sceneManager.add(sideCurb, true);
-        }
-    }
-
-    _buildSignage(sceneManager) {
-        const poleMat = new THREE.MeshStandardMaterial({
-            color: 0x666666,
-            roughness: 0.5,
-            metalness: 0.7,
-        });
-
-        const signPositions = [
-            { x: -8, z: -6, text: 'P' },
-            { x: 8, z: -6, text: 'COMPACT' },
-        ];
-
-        for (const sp of signPositions) {
-            const signPoleGeo = new THREE.CylinderGeometry(0.04, 0.04, 2.5, 6);
-            const signPole = new THREE.Mesh(signPoleGeo, poleMat);
-            signPole.position.set(sp.x, 1.25, sp.z);
-            signPole.castShadow = true;
-            sceneManager.add(signPole, true);
-
-            const signBoardGeo = new THREE.BoxGeometry(0.6, 0.6, 0.04);
-            const signBoardMat = new THREE.MeshStandardMaterial({
-                color: 0x0044aa,
-                roughness: 0.4,
-                metalness: 0.3,
-            });
-            const signBoard = new THREE.Mesh(signBoardGeo, signBoardMat);
-            signBoard.position.set(sp.x, 2.6, sp.z);
-            signBoard.castShadow = true;
-            sceneManager.add(signBoard, false);
-        }
-    }
-
-    _buildProps(sceneManager) {
-        this._buildShoppingCart(sceneManager, -4, 0, -2);
-        this._buildShoppingCart(sceneManager, 3, 0, -3);
-        this._buildShoppingCart(sceneManager, -2, 0, 3);
-        this._buildCartCorral(sceneManager, 10, 0, -4);
-        this._buildBench(sceneManager, 6, 0, 2);
-        this._buildTrashCan(sceneManager, -7, 0, 3);
-        this._buildTrashCan(sceneManager, 7, 0, 3);
-        this._buildLightPole(sceneManager, -10, 0, -5);
-        this._buildLightPole(sceneManager, 10, 0, -5);
-        this._buildLightPole(sceneManager, -10, 0, 5);
-        this._buildLightPole(sceneManager, 10, 0, 5);
-        this._buildPlanter(sceneManager, 8, 0, -1);
-        this._buildPlanter(sceneManager, -8, 0, -1);
-        this._buildParkedCar(sceneManager, -5.6, 0, -2);
-        this._buildParkedCar(sceneManager, 5.6, 0, -2);
-        this._buildParkedCar(sceneManager, -5.6, 0, 2);
-    }
-
-    _buildShoppingCart(sceneManager, x, y, z) {
-        const group = new THREE.Group();
-
-        const basketMat = new THREE.MeshStandardMaterial({
+        // Water tower
+        const towerGroup = new THREE.Group();
+        const towerMat = new THREE.MeshStandardMaterial({
             color: 0x888888,
-            roughness: 0.5,
-            metalness: 0.7,
-        });
-
-        const basketGeo = new THREE.BoxGeometry(0.8, 0.5, 0.5);
-        const basket = new THREE.Mesh(basketGeo, basketMat);
-        basket.position.y = 0.55;
-        basket.castShadow = true;
-        group.add(basket);
-
-        const basketBottomGeo = new THREE.BoxGeometry(0.75, 0.02, 0.45);
-        const basketBottom = new THREE.Mesh(basketBottomGeo, basketMat);
-        basketBottom.position.y = 0.3;
-        group.add(basketBottom);
-
-        const handleGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.6);
-        const handleMat = new THREE.MeshStandardMaterial({ color: 0xcc0000, roughness: 0.6 });
-        const handle = new THREE.Mesh(handleGeo, handleMat);
-        handle.rotation.z = Math.PI / 2;
-        handle.position.set(0, 0.85, -0.35);
-        group.add(handle);
-
-        group.position.set(x, y, z);
-        group.rotation.y = Math.random() * Math.PI * 0.4 - Math.PI * 0.2;
-        sceneManager.add(group, true);
-    }
-
-    _buildCartCorral(sceneManager, x, y, z) {
-        const railMat = new THREE.MeshStandardMaterial({
-            color: 0x444444,
-            roughness: 0.6,
-            metalness: 0.8,
-        });
-
-        const railGeo1 = new THREE.CylinderGeometry(0.03, 0.03, 3, 6);
-        const rail1 = new THREE.Mesh(railGeo1, railMat);
-        rail1.position.set(x, 0.5, z);
-        rail1.rotation.z = Math.PI / 2;
-        sceneManager.add(rail1, true);
-
-        const railGeo2 = new THREE.CylinderGeometry(0.03, 0.03, 3, 6);
-        const rail2 = new THREE.Mesh(railGeo2, railMat);
-        rail2.position.set(x, 1, z);
-        rail2.rotation.z = Math.PI / 2;
-        sceneManager.add(rail2, true);
-
-        for (let dx of [-1.4, 1.4]) {
-            const postGeo = new THREE.CylinderGeometry(0.03, 0.03, 1.2, 6);
-            const post = new THREE.Mesh(postGeo, railMat);
-            post.position.set(x + dx, 0.6, z);
-            sceneManager.add(post, true);
-        }
-    }
-
-    _buildBench(sceneManager, x, y, z) {
-        const woodMat = new THREE.MeshStandardMaterial({
-            color: 0x8B6914,
-            roughness: 0.8,
-            metalness: 0.1,
-        });
-
-        this.addBox(sceneManager, x, y, z, 2, 0.08, 0.5, 0x8B6914, true);
-
-        const legMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.7, metalness: 0.5 });
-        for (let lx of [-0.8, 0.8]) {
-            const legGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.45);
-            const leg = new THREE.Mesh(legGeo, legMat);
-            leg.position.set(x + lx, 0.225, z);
-            leg.castShadow = true;
-            sceneManager.add(leg, true);
-        }
-    }
-
-    _buildTrashCan(sceneManager, x, y, z) {
-        const geo = new THREE.CylinderGeometry(0.25, 0.2, 0.8, 12);
-        const mat = new THREE.MeshStandardMaterial({
-            color: 0x2d5a27,
             roughness: 0.7,
             metalness: 0.3,
         });
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.set(x, 0.4, z);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        sceneManager.add(mesh, true);
-    }
 
-    _buildLightPole(sceneManager, x, y, z) {
-        const poleMat = new THREE.MeshStandardMaterial({
-            color: 0x444444,
-            roughness: 0.4,
-            metalness: 0.8,
-        });
-
-        const poleGeo = new THREE.CylinderGeometry(0.06, 0.08, 5, 8);
-        const pole = new THREE.Mesh(poleGeo, poleMat);
-        pole.position.set(x, 2.5, z);
-        pole.castShadow = true;
-        sceneManager.add(pole, true);
-
-        const armGeo = new THREE.BoxGeometry(1.5, 0.06, 0.06);
-        const arm = new THREE.Mesh(armGeo, poleMat);
-        arm.position.set(x, 5, z);
-        arm.castShadow = true;
-        sceneManager.add(arm, true);
-
-        const lightGeo = new THREE.BoxGeometry(1.2, 0.1, 0.4);
-        const lightMat = new THREE.MeshStandardMaterial({
-            color: 0xffffee,
-            emissive: 0xffffcc,
-            emissiveIntensity: 0.3,
-            roughness: 0.3,
-        });
-        const light = new THREE.Mesh(lightGeo, lightMat);
-        light.position.set(x, 4.95, z);
-        light.castShadow = true;
-        sceneManager.add(light, true);
-    }
-
-    _buildPlanter(sceneManager, x, y, z) {
-        this.addBox(sceneManager, x, y, z, 1.2, 0.6, 1.2, 0x8B4513, true);
-
-        const plantMat = new THREE.MeshStandardMaterial({
-            color: 0x2d7a27,
-            roughness: 0.9,
-            metalness: 0,
-        });
-
+        // Support legs
         for (let i = 0; i < 4; i++) {
-            const bushGeo = new THREE.SphereGeometry(0.25 + Math.random() * 0.15, 8, 6);
-            const bush = new THREE.Mesh(bushGeo, plantMat);
-            bush.position.set(
-                x + (Math.random() - 0.5) * 0.6,
-                0.75 + Math.random() * 0.1,
-                z + (Math.random() - 0.5) * 0.6
+            const leg = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.1, 0.15, 15, 6),
+                towerMat
             );
-            bush.castShadow = true;
-            sceneManager.add(bush, false);
-        }
-    }
-
-    _buildParkedCar(sceneManager, x, y, z) {
-        const group = new THREE.Group();
-
-        const bodyColors = [0xcc0000, 0x0044aa, 0x333333, 0xdddddd, 0x224422];
-        const bodyColor = bodyColors[Math.floor(Math.random() * bodyColors.length)];
-
-        const bodyGeo = new THREE.BoxGeometry(1.8, 0.6, 3.5);
-        const bodyMat = new THREE.MeshStandardMaterial({
-            color: bodyColor,
-            roughness: 0.3,
-            metalness: 0.7,
-        });
-        const body = new THREE.Mesh(bodyGeo, bodyMat);
-        body.position.y = 0.4;
-        body.castShadow = true;
-        group.add(body);
-
-        const cabinGeo = new THREE.BoxGeometry(1.5, 0.5, 1.8);
-        const cabinMat = new THREE.MeshStandardMaterial({
-            color: bodyColor,
-            roughness: 0.3,
-            metalness: 0.7,
-        });
-        const cabin = new THREE.Mesh(cabinGeo, cabinMat);
-        cabin.position.y = 0.95;
-        cabin.position.z = -0.3;
-        cabin.castShadow = true;
-        group.add(cabin);
-
-        const windowMat = new THREE.MeshStandardMaterial({
-            color: 0x668899,
-            roughness: 0.1,
-            metalness: 0.8,
-            transparent: true,
-            opacity: 0.6,
-        });
-
-        const windshieldGeo = new THREE.PlaneGeometry(1.4, 0.5);
-        const windshield = new THREE.Mesh(windshieldGeo, windowMat);
-        windshield.position.set(0, 0.95, 0.65);
-        windshield.rotation.x = -0.2;
-        group.add(windshield);
-
-        for (let wx of [-0.85, 0.85]) {
-            const wheelGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.15, 12);
-            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
-            for (let wz of [-1.2, 1.2]) {
-                const wheel = new THREE.Mesh(wheelGeo, wheelMat);
-                wheel.rotation.z = Math.PI / 2;
-                wheel.position.set(wx, 0.25, wz);
-                wheel.castShadow = true;
-                group.add(wheel);
-            }
+            const angle = (i / 4) * Math.PI * 2;
+            leg.position.set(Math.cos(angle) * 2, 7.5, Math.sin(angle) * 2);
+            leg.rotation.x = Math.cos(angle) * 0.1;
+            leg.rotation.z = Math.sin(angle) * 0.1;
+            towerGroup.add(leg);
         }
 
-        group.position.set(x, y, z);
-        group.rotation.y = z < 0 ? Math.PI : 0;
-        sceneManager.add(group, true);
-    }
+        // Tank
+        const tank = new THREE.Mesh(
+            new THREE.SphereGeometry(3, 12, 8),
+            new THREE.MeshStandardMaterial({
+                color: 0x6688aa,
+                roughness: 0.6,
+                metalness: 0.2,
+            })
+        );
+        tank.position.y = 16;
+        tank.scale.y = 0.8;
+        towerGroup.add(tank);
 
-    _buildLandscaping(sceneManager) {
-        const treePositions = [
-            { x: -14, z: -7 },
-            { x: 14, z: -7 },
-            { x: -12, z: 5 },
-            { x: 16, z: 3 },
-            { x: -16, z: 0 },
-            { x: 12, z: 8 },
-            { x: -10, z: -8 },
-            { x: 10, z: -8 },
-        ];
+        towerGroup.position.set(25, 0, -35);
+        sceneManager.add(towerGroup, false);
 
-        for (const pos of treePositions) {
-            this._buildTree(sceneManager, pos.x, 0, pos.z);
-        }
-
-        const grassMat = new THREE.MeshStandardMaterial({
-            color: 0x4a7247,
-            roughness: 0.95,
-            metalness: 0,
-        });
-        const grassGeo = new THREE.PlaneGeometry(30, 30);
-        const grass = new THREE.Mesh(grassGeo, grassMat);
-        grass.rotation.x = -Math.PI / 2;
-        grass.position.set(0, 0.005, 0);
-        grass.receiveShadow = true;
-        sceneManager.add(grass, false);
-    }
-
-    _buildTree(sceneManager, x, y, z) {
-        const trunkGeo = new THREE.CylinderGeometry(0.15, 0.2, 3, 8);
-        const trunkMat = new THREE.MeshStandardMaterial({
-            color: 0x5C4033,
-            roughness: 0.9,
-            metalness: 0,
-        });
-        const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-        trunk.position.set(x, 1.5, z);
-        trunk.castShadow = true;
-        sceneManager.add(trunk, true);
-
-        const foliageMat = new THREE.MeshStandardMaterial({
-            color: 0x2d6a1e,
-            roughness: 0.85,
-            metalness: 0,
-        });
-
-        for (let i = 0; i < 3; i++) {
-            const size = 1.5 - i * 0.3;
-            const foliageGeo = new THREE.SphereGeometry(size, 8, 6);
-            const foliage = new THREE.Mesh(foliageGeo, foliageMat);
-            foliage.position.set(
-                x + (Math.random() - 0.5) * 0.5,
-                3 + i * 0.8,
-                z + (Math.random() - 0.5) * 0.5
+        // Utility poles
+        for (let i = 0; i < 5; i++) {
+            const pole = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.05, 0.07, 8, 6),
+                new THREE.MeshStandardMaterial({
+                    color: 0x664422,
+                    roughness: 0.9,
+                })
             );
-            foliage.castShadow = true;
-            sceneManager.add(foliage, true);
+            pole.position.set(-25 + i * 12, 4, -30);
+            pole.castShadow = true;
+            sceneManager.add(pole, false);
+
+            // Cross bar
+            const crossBar = new THREE.Mesh(
+                new THREE.BoxGeometry(2, 0.06, 0.06),
+                new THREE.MeshStandardMaterial({
+                    color: 0x664422,
+                    roughness: 0.9,
+                })
+            );
+            crossBar.position.set(-25 + i * 12, 7.5, -30);
+            sceneManager.add(crossBar, false);
         }
     }
 
-    getEnemies() {
-        return [];
+    _addAtmosphericFog(sceneManager) {
+        sceneManager.scene.fog = new THREE.FogExp2(0xccddbb, 0.008);
     }
 
     getSpawnDefinitions() {
         return [
             new SpawnDefinition({
                 karenType: 'manager',
-                position: new THREE.Vector3(2, 0, -3),
-                patrolCenter: new THREE.Vector3(2, 0, -3),
+                position: new THREE.Vector3(-2, 0, -5),
+                patrolCenter: new THREE.Vector3(-2, 0, -5),
                 patrolRadius: 3,
                 orientation: 0,
             }),
             new SpawnDefinition({
                 karenType: 'manager',
-                position: new THREE.Vector3(-5, 0, 0),
-                patrolCenter: new THREE.Vector3(-5, 0, 0),
-                patrolRadius: 2,
-                orientation: Math.PI / 4,
+                position: new THREE.Vector3(3, 0, -3),
+                patrolCenter: new THREE.Vector3(3, 0, -3),
+                patrolRadius: 2.5,
+                orientation: Math.PI / 6,
             }),
             new SpawnDefinition({
                 karenType: 'hoa',
-                position: new THREE.Vector3(6, 0, 2),
-                patrolCenter: new THREE.Vector3(6, 0, 2),
-                patrolRadius: 2.5,
+                position: new THREE.Vector3(12, 0, 0),
+                patrolCenter: new THREE.Vector3(12, 0, 0),
+                patrolRadius: 3,
                 orientation: -Math.PI / 3,
             }),
             new SpawnDefinition({
                 karenType: 'retail_return',
-                position: new THREE.Vector3(-2, 0, -6),
-                patrolCenter: new THREE.Vector3(-2, 0, -6),
-                patrolRadius: 3,
-                orientation: Math.PI / 2,
+                position: new THREE.Vector3(-8, 0, -3),
+                patrolCenter: new THREE.Vector3(-8, 0, -3),
+                patrolRadius: 2.5,
+                orientation: Math.PI / 4,
             }),
         ];
     }

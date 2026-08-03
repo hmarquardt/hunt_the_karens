@@ -119,6 +119,13 @@ export class CallManagerAbility extends KarenAbility {
         this._vfx = [];
     }
 
+    _onComplete() {
+        if (this.karen) {
+            this.karen.updateDialogue('');
+        }
+        this._clearTelegraphVFX();
+    }
+
     _onReset() {
         this._clearTelegraphVFX();
     }
@@ -151,11 +158,6 @@ export class CallManagerAbility extends KarenAbility {
             }
             return true;
         });
-    }
-
-    reset() {
-        super.reset();
-        this._onReset();
     }
 
     dispose() {
@@ -276,6 +278,13 @@ export class ViolationNoticeAbility extends KarenAbility {
         this._vfx = [];
     }
 
+    _onComplete() {
+        if (this.karen) {
+            this.karen.updateDialogue('');
+        }
+        this._clearTelegraphVFX();
+    }
+
     _onReset() {
         this._clearTelegraphVFX();
     }
@@ -309,11 +318,6 @@ export class ViolationNoticeAbility extends KarenAbility {
             }
             return true;
         });
-    }
-
-    reset() {
-        super.reset();
-        this._onReset();
     }
 
     dispose() {
@@ -434,6 +438,13 @@ export class ReturnWithoutReceiptAbility extends KarenAbility {
         this._vfx = [];
     }
 
+    _onComplete() {
+        if (this.karen) {
+            this.karen.updateDialogue('');
+        }
+        this._clearTelegraphVFX();
+    }
+
     _onReset() {
         this._clearTelegraphVFX();
     }
@@ -469,11 +480,6 @@ export class ReturnWithoutReceiptAbility extends KarenAbility {
             }
             return true;
         });
-    }
-
-    reset() {
-        super.reset();
-        this._onReset();
     }
 
     dispose() {
