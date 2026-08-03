@@ -119,3 +119,27 @@ Run these checks against a clean committed worktree. Start server with `python3 
 - [ ] Shows enemy count, spawn/respawn queues
 - [ ] Shows VFX and world effect counts
 - [ ] Shows draw calls, triangles, memory
+
+## Visual Identity — Weapons
+- [ ] Croc held in first person has recognizable foam clog shape
+- [ ] Croc has ventilation holes, heel strap, toe box
+- [ ] Croc projectile in flight looks like a clog
+- [ ] Water Balloon is semi-translucent with tied neck
+- [ ] Water Balloon projectile has internal color variation
+- [ ] Garden Gnome has red pointed hat, white beard, blue shirt
+- [ ] Garden Gnome projectile rotates visibly
+- [ ] First-person hand supports weapon presentation
+- [ ] Weapon throw animation plays with visible motion
+
+## Visual Identity — Environment
+- [ ] Sky gradient renders (blue sky to warm horizon)
+- [ ] Distant tree silhouettes visible
+- [ ] Distant building silhouettes visible
+- [ ] Lighting has warm late-afternoon quality
+- [ ] Shadows cast in consistent direction
+- [ ] Scene does not look uniformly lit
+
+## Visual Identity — Characters
+- [ ] Karen characters use stylized human proportions
+- [ ] Karen hair is visible (asymmetric bob)
+- [ ] Different Karen archetypes have visual distinction
