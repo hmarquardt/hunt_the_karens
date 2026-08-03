@@ -21,6 +21,9 @@ export class Landscaping {
         this._foliageGeo = this.tracker.trackGeometry(
             new THREE.SphereGeometry(1, 8, 6)
         );
+        this._distantTreeGeo = this.tracker.trackGeometry(
+            new THREE.ConeGeometry(1, 1, 6)
+        );
     }
 
     createLandscapeIsland(x, z, width, depth, options = {}) {
@@ -226,10 +229,7 @@ export class Landscaping {
 
     createDistantTree(x, z, rng) {
         const height = 4 + rng() * 4;
-        const geo = this.tracker.trackGeometry(
-            new THREE.ConeGeometry(1, 1, 6)
-        );
-        const tree = new THREE.Mesh(geo, this.materials.get('foliageDark'));
+        const tree = new THREE.Mesh(this._distantTreeGeo, this.materials.get('foliageDark'));
         tree.scale.set(1 + rng() * 0.5, height, 1 + rng() * 0.5);
         tree.position.set(x, height / 2, z);
         tree.castShadow = true;

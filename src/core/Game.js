@@ -100,6 +100,8 @@ export class Game {
             karenRegistry
         );
 
+        this._resetInProgress = false;
+
         document.addEventListener('keydown', this._onKeyDown);
         document.addEventListener('pointerlockchange', this._onPointerLockChange);
         document.addEventListener('click', this._initAudioOnInteraction, { once: true });
@@ -235,9 +237,15 @@ export class Game {
     }
 
     reset() {
-        if (this.level && this._lastFactoryFn) {
-            this.loadLevel(this.level, this._lastFactoryFn);
-        }
+        if (this._resetInProgress) return;
+        if (!this.level || !this._lastFactoryFn) return;
+
+        this._resetInProgress = true;
+        this.loadLevel(this.level, this._lastFactoryFn).then(() => {
+            this._resetInProgress = false;
+        }).catch(() => {
+            this._resetInProgress = false;
+        });
     }
 
     setLastFactoryFn(fn) {

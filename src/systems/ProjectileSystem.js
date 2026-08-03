@@ -235,14 +235,28 @@ export class ProjectileSystem {
     }
 
     clear() {
+        // Deactivate and remove all active projectiles from scene
         for (const p of this.active) {
-            this.scene.remove(p.mesh);
+            p.deactivate();
+            if (p.mesh && p.mesh.parent) {
+                this.scene.remove(p.mesh);
+            }
             if (p.debugLine) {
                 this.scene.remove(p.debugLine);
                 p.debugLine = null;
             }
         }
         this.active = [];
+
+        // Ensure no pooled projectiles are left in active state
+        for (const p of this.pool) {
+            if (p.active) {
+                p.deactivate();
+                if (p.mesh && p.mesh.parent) {
+                    this.scene.remove(p.mesh);
+                }
+            }
+        }
     }
 
     setDebug(enabled) {

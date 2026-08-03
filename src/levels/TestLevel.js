@@ -341,23 +341,18 @@ export class TestLevel extends Level {
             sceneManager.add(vehicle, false);
             this._stats.vehicleCount++;
 
-            // Create collision proxy for vehicles near storefront
+            // Create collision data object for vehicles near storefront
             if (z >= -6 && z <= 8) {
-                const proxy = new THREE.Mesh(
-                    new THREE.CylinderGeometry(
-                        vehicle.userData.collisionRadius / 2,
-                        vehicle.userData.collisionRadius / 2,
-                        0.1,
-                        12
-                    ),
-                    new THREE.MeshBasicMaterial({ visible: false })
-                );
-                proxy.position.set(x, 0.5, z);
-                proxy.rotation.y = vehicle.rotation.y;
-                proxy.userData.isVehicleCollider = true;
-                proxy.userData.vehicleRef = vehicle;
-                sceneManager.add(proxy, false);
-                this._vehicleColliders.push(proxy);
+                const col = vehicle.userData.collision || { halfWidth: 1.0, halfLength: 2.1, height: 1.4 };
+                this._vehicleColliders.push({
+                    type: 'vehicle',
+                    position: new THREE.Vector3(x, 0, z),
+                    halfWidth: col.halfWidth,
+                    halfLength: col.halfLength,
+                    height: col.height,
+                    rotation: vehicle.rotation.y,
+                    vehicleRef: vehicle,
+                });
             }
         };
 
@@ -487,16 +482,17 @@ export class TestLevel extends Level {
             roughness: 0.2,
         });
 
-        const dummy = new THREE.Object3D();
-
         // Pole cylinders
         const poleGeo = this._tracker.trackGeometry(
             new THREE.CylinderGeometry(0.06, 0.08, height, 8)
         );
         const poleInstances = new THREE.InstancedMesh(poleGeo, poleMat, count);
         poleInstances.castShadow = true;
+        let dummy = new THREE.Object3D();
         for (let i = 0; i < count; i++) {
             dummy.position.set(positions[i][0], height / 2, positions[i][1]);
+            dummy.rotation.set(0, 0, 0);
+            dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
             poleInstances.setMatrixAt(i, dummy.matrix);
         }
@@ -508,8 +504,11 @@ export class TestLevel extends Level {
         );
         const baseInstances = new THREE.InstancedMesh(baseGeo, concreteMat, count);
         baseInstances.castShadow = true;
+        dummy = new THREE.Object3D();
         for (let i = 0; i < count; i++) {
             dummy.position.set(positions[i][0], 0.1, positions[i][1]);
+            dummy.rotation.set(0, 0, 0);
+            dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
             baseInstances.setMatrixAt(i, dummy.matrix);
         }
@@ -520,8 +519,11 @@ export class TestLevel extends Level {
             new THREE.BoxGeometry(2, 0.06, 0.06)
         );
         const armInstances = new THREE.InstancedMesh(armGeo, poleMat, count);
+        dummy = new THREE.Object3D();
         for (let i = 0; i < count; i++) {
             dummy.position.set(positions[i][0] + 0.8, height - 0.1, positions[i][1]);
+            dummy.rotation.set(0, 0, 0);
+            dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
             armInstances.setMatrixAt(i, dummy.matrix);
         }
@@ -533,8 +535,11 @@ export class TestLevel extends Level {
         );
         const lampInstances = new THREE.InstancedMesh(lampGeo, fixtureMat, count);
         lampInstances.castShadow = true;
+        dummy = new THREE.Object3D();
         for (let i = 0; i < count; i++) {
             dummy.position.set(positions[i][0] + 1.2, height - 0.2, positions[i][1]);
+            dummy.rotation.set(0, 0, 0);
+            dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
             lampInstances.setMatrixAt(i, dummy.matrix);
         }
@@ -545,9 +550,11 @@ export class TestLevel extends Level {
             new THREE.PlaneGeometry(1.1, 0.4)
         );
         const lightInstances = new THREE.InstancedMesh(lightGeo, lightMat, count);
+        dummy = new THREE.Object3D();
         for (let i = 0; i < count; i++) {
             dummy.position.set(positions[i][0] + 1.2, height - 0.25, positions[i][1]);
-            dummy.rotation.x = Math.PI / 2;
+            dummy.rotation.set(Math.PI / 2, 0, 0);
+            dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
             lightInstances.setMatrixAt(i, dummy.matrix);
         }
@@ -894,6 +901,7 @@ export class TestLevel extends Level {
     getStats() {
         return {
             ...this._stats,
+            vehicleColliders: this._vehicleColliders.length,
             ...this._tracker?.getStats() || {},
         };
     }

@@ -199,7 +199,7 @@ export class ParkingLot {
         for (let i = 0; i < lineData.length; i++) {
             const l = lineData[i];
             dummy.position.set(l.x, 0.025, l.z);
-            dummy.rotation.x = -Math.PI / 2;
+            dummy.rotation.set(-Math.PI / 2, 0, 0);
             dummy.scale.set(l.w, l.d, 1);
             dummy.updateMatrix();
             instances.setMatrixAt(i, dummy.matrix);
@@ -371,6 +371,7 @@ export class ParkingLot {
         for (let i = 0; i < curbSegments.length; i++) {
             const seg = curbSegments[i];
             dummy.position.set(seg.x, seg.h / 2, seg.z);
+            dummy.rotation.set(0, 0, 0);
             dummy.scale.set(seg.w, seg.h, seg.d);
             dummy.updateMatrix();
             instances.setMatrixAt(i, dummy.matrix);
@@ -424,13 +425,15 @@ export class ParkingLot {
         const baseInstances = new THREE.InstancedMesh(baseGeo, concreteMat, count);
         baseInstances.castShadow = false;
         baseInstances.receiveShadow = true;
-        const dummy = new THREE.Object3D();
+        let dummy = new THREE.Object3D();
         for (let i = 0; i < count; i++) {
             dummy.position.set(
                 positions[i][0] + (Math.random() - 0.5) * 0.1,
                 0.05,
                 positions[i][1] + (Math.random() - 0.5) * 0.1
             );
+            dummy.rotation.set(0, 0, 0);
+            dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
             baseInstances.setMatrixAt(i, dummy.matrix);
         }
@@ -439,12 +442,15 @@ export class ParkingLot {
         // InstancedMesh for bollard bodies
         const bollardInstances = new THREE.InstancedMesh(bollardGeo, yellowMat, count);
         bollardInstances.castShadow = true;
+        dummy = new THREE.Object3D();
         for (let i = 0; i < count; i++) {
             dummy.position.set(
                 positions[i][0] + (Math.random() - 0.5) * 0.1,
                 0.55,
                 positions[i][1] + (Math.random() - 0.5) * 0.1
             );
+            dummy.rotation.set(0, 0, 0);
+            dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
             bollardInstances.setMatrixAt(i, dummy.matrix);
         }
@@ -452,12 +458,15 @@ export class ParkingLot {
 
         // InstancedMesh for reflective stripes
         const stripeInstances = new THREE.InstancedMesh(stripeGeo, whiteMat, count);
+        dummy = new THREE.Object3D();
         for (let i = 0; i < count; i++) {
             dummy.position.set(
                 positions[i][0] + (Math.random() - 0.5) * 0.1,
                 0.7,
                 positions[i][1] + (Math.random() - 0.5) * 0.1
             );
+            dummy.rotation.set(0, 0, 0);
+            dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
             stripeInstances.setMatrixAt(i, dummy.matrix);
         }
@@ -474,7 +483,7 @@ export class ParkingLot {
         const dummy = new THREE.Object3D();
         for (let i = 0; i < count; i++) {
             dummy.position.set(-1.5 + i * 0.6, 0.026, 0);
-            dummy.rotation.x = -Math.PI / 2;
+            dummy.rotation.set(-Math.PI / 2, 0, 0);
             dummy.scale.set(0.4, 3, 1);
             dummy.updateMatrix();
             instances.setMatrixAt(i, dummy.matrix);
