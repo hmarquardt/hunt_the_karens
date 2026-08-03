@@ -21,8 +21,6 @@ export class HOAKaren extends Karen {
     }
 
     _addHOAAccessories() {
-        if (!this.mesh) return;
-
         const clipboardGeo = new THREE.BoxGeometry(0.18, 0.25, 0.01);
         const clipboardMat = new THREE.MeshStandardMaterial({
             color: 0x8B7355,
@@ -30,10 +28,8 @@ export class HOAKaren extends Karen {
             metalness: 0.1,
         });
         const clipboard = new THREE.Mesh(clipboardGeo, clipboardMat);
-        clipboard.position.set(-0.3, this.colliderHeight * 0.45, 0.08);
-        clipboard.rotation.z = 0.1;
         clipboard.castShadow = true;
-        this.mesh.add(clipboard);
+        this.addAccessory('clipboard', clipboard, 'leftHand');
 
         const paperGeo = new THREE.PlaneGeometry(0.14, 0.2);
         const paperMat = new THREE.MeshStandardMaterial({
@@ -43,8 +39,7 @@ export class HOAKaren extends Karen {
             side: THREE.DoubleSide,
         });
         const paper = new THREE.Mesh(paperGeo, paperMat);
-        paper.position.set(-0.3, this.colliderHeight * 0.47, 0.09);
-        this.mesh.add(paper);
+        this.addAccessory('paper', paper, 'leftHand');
 
         const tapeGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.15, 6);
         const tapeMat = new THREE.MeshStandardMaterial({
@@ -53,10 +48,8 @@ export class HOAKaren extends Karen {
             metalness: 0.6,
         });
         const tape = new THREE.Mesh(tapeGeo, tapeMat);
-        tape.position.set(0.3, this.colliderHeight * 0.5, 0.05);
-        tape.rotation.z = Math.PI / 6;
         tape.castShadow = true;
-        this.mesh.add(tape);
+        this.addAccessory('measuringTape', tape, 'rightHand');
 
         const visorGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.03, 12, 1, false, 0, Math.PI);
         const visorMat = new THREE.MeshStandardMaterial({
@@ -65,14 +58,7 @@ export class HOAKaren extends Karen {
             metalness: 0.1,
         });
         const visor = new THREE.Mesh(visorGeo, visorMat);
-        visor.position.set(0, this.colliderHeight * 0.75, 0.1);
-        visor.rotation.x = -0.3;
         visor.castShadow = true;
-        this.mesh.add(visor);
-    }
-
-    attachCharacterAsset(characterInstance, animationClips) {
-        super.attachCharacterAsset(characterInstance, animationClips);
-        this._addHOAAccessories();
+        this.addAccessory('visor', visor, 'head');
     }
 }

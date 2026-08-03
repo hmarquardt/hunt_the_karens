@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { NPC } from './NPC.js';
-import { KAREN_BASE } from '../config/karenTypes.js';
+import { KAREN_TYPES } from '../config/karenTypes.js';
 import { KarenStateMachine, KarenState } from '../animation/KarenStateMachine.js';
-import { AnimationController } from '../animation/AnimationController.js';
 import { DialogueController } from './components/DialogueController.js';
 import { KarenPerception } from './components/KarenPerception.js';
 import { StatusEffectController } from './components/StatusEffectController.js';
+import { ProceduralHuman } from '../visual/ProceduralHuman.js';
+import { buildKarenBob, buildKarenPlatinumBob, buildKarenBrunetteBob, buildKarenAuburnBob } from '../visual/KarenHair.js';
 
 export class Karen extends NPC {
     constructor(config) {
@@ -22,10 +23,8 @@ export class Karen extends NPC {
         this.dialogueInterval = config.dialogueInterval || 4000;
         this.hitStunDuration = config.hitStunDuration || 800;
         this.ragdollDuration = config.ragdollDuration || 2000;
-        this.characterAssetName = config.characterAssetName || null;
 
         this.stateMachine = new KarenStateMachine();
-        this.animController = null;
         this.dialogueTimer = 0;
         this.patrolCenter = config.patrolCenter || new THREE.Vector3();
         this.patrolRadius = config.patrolRadius || 3;
@@ -57,13 +56,15 @@ export class Karen extends NPC {
 
         this.reactionRemaining = 0;
         this.defeatVisibilityRemaining = 0;
-        this.specialRemaining = 0;
+
+        this.proceduralAnimationState = 'idle';
+        this.proceduralAnimTimer = 0;
 
         if (config.playerRef) {
             this._playerRef = config.playerRef;
         }
 
-        this._buildKarenMesh(config);
+        this._buildVisual(config);
         this._setupStateMachine();
     }
 
@@ -76,56 +77,23 @@ export class Karen extends NPC {
         return this.speed * speedMult;
     }
 
-    _buildKarenMesh(config) {
-        if (this.characterAssetName) {
-            this._setupCharacterAsset(config);
-        } else {
-            this._buildPlaceholderMesh(config);
-        }
+    _buildVisual(config) {
+        const visualConfig = config.visual || {};
+
+        this.proceduralHuman = new ProceduralHuman({
+            bodyType: visualConfig.bodyType || 'average',
+            skinTone: visualConfig.skinTone || 0xd4a574,
+            outfitColor: visualConfig.outfitColor || 0x333333,
+            shoeColor: visualConfig.shoeColor || 0x222222,
+            hairColor: visualConfig.hairColor || 0xc8a864,
+        });
+
+        this.mesh = this.proceduralHuman.getGroup();
+        this.mesh.position.copy(this.position);
+
+        this._buildHair(visualConfig);
 
         if (this.dialogueController) {
-            this.dialogueController.attachTo(this.mesh);
-        }
-
-        if (this.mesh) {
-            this.mesh.userData.isKaren = true;
-            this.mesh.userData.karenRef = this;
-        }
-    }
-
-    _setupCharacterAsset(config) {
-        this.mesh = null;
-        this._pendingAsset = config.characterAssetName;
-    }
-
-    attachCharacterAsset(characterInstance, animationClips) {
-        if (!this.mesh) {
-            this.mesh = new THREE.Group();
-        }
-
-        while (this.mesh.children.length > 0) {
-            const child = this.mesh.children[0];
-            if (child === this.dialogueController?.dialogueBubble) {
-                this.mesh.remove(child);
-            } else {
-                this.mesh.remove(child);
-            }
-        }
-
-        this.mesh.add(characterInstance);
-        this.characterMesh = characterInstance;
-
-        if (animationClips && animationClips.length > 0) {
-            this.animController = new AnimationController(characterInstance, animationClips);
-        }
-
-        this.colliderHeight = this.colliderHeight || 1.6;
-        this.colliderRadius = this.colliderRadius || 0.4;
-
-        if (this.dialogueController) {
-            if (this.dialogueController.dialogueBubble.parent) {
-                this.dialogueController.dialogueBubble.parent.remove(this.dialogueController.dialogueBubble);
-            }
             this.dialogueController.attachTo(this.mesh);
         }
 
@@ -133,63 +101,47 @@ export class Karen extends NPC {
         this.mesh.userData.karenRef = this;
     }
 
-    _buildPlaceholderMesh(config) {
-        const group = this.mesh;
-        if (!group) return;
-
-        while (group.children.length > 0) {
-            group.remove(group.children[0]);
+    _buildHair(visualConfig) {
+        const hairStyle = visualConfig.hairStyle || 'bob';
+        const hairBuilder = this._getHairBuilder(hairStyle);
+        if (hairBuilder) {
+            this.buildHair(hairBuilder);
         }
+    }
 
-        const bodyGeo = new THREE.CylinderGeometry(0.22, 0.28, this.colliderHeight * 0.55, 8);
-        const bodyMat = new THREE.MeshStandardMaterial({
-            color: config.outfitColor || 0x222222,
-            roughness: 0.7,
-            metalness: 0.1,
-        });
-        const body = new THREE.Mesh(bodyGeo, bodyMat);
-        body.position.y = this.colliderHeight * 0.28;
-        body.castShadow = true;
-        body.receiveShadow = true;
-        group.add(body);
-
-        const headGeo = new THREE.SphereGeometry(0.18, 12, 8);
-        const headMat = new THREE.MeshStandardMaterial({
-            color: 0xd4a574,
-            roughness: 0.8,
-            metalness: 0.05,
-        });
-        const head = new THREE.Mesh(headGeo, headMat);
-        head.position.y = this.colliderHeight * 0.68;
-        head.castShadow = true;
-        group.add(head);
-
-        if (config.hairColor) {
-            const hairGeo = new THREE.SphereGeometry(0.22, 12, 6, 0, Math.PI * 2, 0, Math.PI * 0.6);
-            const hairMat = new THREE.MeshStandardMaterial({
-                color: config.hairColor,
-                roughness: 0.9,
-                metalness: 0.0,
-            });
-            const hair = new THREE.Mesh(hairGeo, hairMat);
-            hair.position.y = this.colliderHeight * 0.72;
-            hair.castShadow = true;
-            group.add(hair);
-
-            const bobGeo = new THREE.BoxGeometry(0.32, 0.15, 0.28);
-            const bobMat = new THREE.MeshStandardMaterial({
-                color: config.hairColor,
-                roughness: 0.85,
-                metalness: 0.0,
-            });
-            const bob = new THREE.Mesh(bobGeo, bobMat);
-            bob.position.set(0, this.colliderHeight * 0.62, -0.05);
-            bob.castShadow = true;
-            group.add(bob);
+    _getHairBuilder(style) {
+        switch (style) {
+            case 'platinumBob':
+                return buildKarenPlatinumBob;
+            case 'brunetteBob':
+                return buildKarenBrunetteBob;
+            case 'auburnBob':
+                return buildKarenAuburnBob;
+            case 'asymmetricBob':
+            default:
+                return buildKarenBob;
         }
+    }
 
-        this.colliderHeight = this.colliderHeight || 1.6;
-        this.colliderRadius = this.colliderRadius || 0.4;
+    addAccessory(name, mesh, parentBone) {
+        if (this.proceduralHuman) {
+            this.proceduralHuman.addAccessory(name, mesh, parentBone);
+        }
+    }
+
+    getAttachmentPoint(name) {
+        if (this.proceduralHuman) {
+            return this.proceduralHuman.getBone(name);
+        }
+        return null;
+    }
+
+    dispose() {
+        if (this.proceduralHuman) {
+            this.proceduralHuman.dispose();
+        }
+        this.disposeAbilities();
+        super.dispose?.();
     }
 
     updateDialogue(text) {
@@ -213,50 +165,67 @@ export class Karen extends NPC {
     }
 
     _onStateEnter(from, to) {
-        if (!this.animController) return;
+        this.proceduralAnimationState = this._stateToAnimation(to);
+        this.proceduralAnimTimer = 0;
 
-        switch (to) {
+        if (to === KarenState.ALERT) {
+            if (this.dialogue.length > 0) {
+                this.updateDialogue(this.dialogue[Math.floor(Math.random() * this.dialogue.length)]);
+            } else {
+                this.updateDialogue('Hey!');
+            }
+        }
+
+        if (to === KarenState.DEFEATED) {
+            this.updateDialogue("I'LL SUE!!!");
+        }
+    }
+
+    _stateToAnimation(state) {
+        switch (state) {
             case KarenState.IDLE:
-                this._playAnimation('Idle', { crossfade: 0.3 });
-                break;
+                return 'idle';
             case KarenState.PATROL:
-                this._playAnimation('Walking', { crossfade: 0.3 });
-                break;
+                return 'walk';
             case KarenState.ALERT:
-                this._playAnimation('Idle', { crossfade: 0.15 });
-                if (this.dialogue.length > 0) {
-                    this.updateDialogue(this.dialogue[Math.floor(Math.random() * this.dialogue.length)]);
-                } else {
-                    this.updateDialogue('Hey!');
-                }
-                break;
+                return 'confront';
             case KarenState.CONFRONT:
-                this._playAnimation('Walking', { crossfade: 0.2, timeScale: 0.8 });
-                break;
+                return 'confront';
             case KarenState.REACT:
-                this._playAnimation('Punch', { crossfade: 0.1, clampWhenFinished: true });
-                break;
+                return 'hit';
             case KarenState.STUNNED:
-                this._playAnimation('Death', { crossfade: 0.2, clampWhenFinished: true, timeScale: 0.5 });
-                break;
+                return 'hit';
             case KarenState.DEFEATED:
-                this._playAnimation('Death', { crossfade: 0.1, clampWhenFinished: true });
-                this.updateDialogue("I'LL SUE!!!");
-                break;
+                return 'defeat';
             case KarenState.SPECIAL:
-                this._playAnimation('ThumbsUp', { crossfade: 0.2, clampWhenFinished: true });
-                break;
+                return 'ability';
             case KarenState.RESPAWNING:
-                break;
+                return 'idle';
+            default:
+                return 'idle';
         }
     }
 
     _playAnimation(name, options) {
-        if (!this.animController) return;
-        const available = this.animController.getAvailableAnimations();
-        if (available.includes(name)) {
-            this.animController.play(name, options);
-        }
+        // Legacy method kept for compatibility; now driven by proceduralAnimationState
+        this.proceduralAnimationState = name.toLowerCase();
+        this.proceduralAnimTimer = 0;
+    }
+
+    _updateProceduralAnimation(delta) {
+        if (!this.proceduralHuman) return;
+
+        this.proceduralAnimTimer += delta;
+
+        const isMoving = this.stateMachine.is(KarenState.PATROL) || this.stateMachine.is(KarenState.CONFRONT);
+        const speed = isMoving ? this.getEffectiveSpeed() : 0;
+
+        this.proceduralHuman.animate(this.proceduralAnimationState, this.proceduralAnimTimer, {
+            isMoving,
+            speed,
+            isAlive: this.isAlive,
+            hpRatio: this.currentHp / this.maxHp,
+        });
     }
 
     setPlayerRef(playerRef) {
@@ -311,15 +280,16 @@ export class Karen extends NPC {
 
         const hasActiveAbility = this._updateAbilitiesState(delta);
         if (hasActiveAbility && this.stateMachine.is(KarenState.SPECIAL)) {
+            this._updateProceduralAnimation(delta);
             return;
         }
 
         if (!this.isAlive) {
-            if (this.animController) this.animController.update(delta);
+            this._updateProceduralAnimation(delta);
             return;
         }
 
-        if (this.animController) this.animController.update(delta);
+        this._updateProceduralAnimation(delta);
 
         if (this.stateMachine.is(KarenState.STUNNED)) {
             return;

@@ -75,19 +75,7 @@ export class SpawnDirector {
 
         karen.setPosition(def.position.x, def.position.y, def.position.z);
 
-        const assetName = karen.characterAssetName || karen._pendingAsset;
-        if (assetName && this.characterAssets.has(assetName)) {
-            const asset = this.characterAssets.get(assetName);
-            const instance = asset.cloneInstance();
-            const clips = asset.getAnimationClips();
-            karen.attachCharacterAsset(instance, clips);
-
-            if (def.orientation && karen.mesh) {
-                karen.mesh.rotation.y = def.orientation;
-            }
-
-            karen.mesh.position.copy(karen.position);
-        } else if (karen.mesh) {
+        if (karen.mesh) {
             if (def.orientation) {
                 karen.mesh.rotation.y = def.orientation;
             }

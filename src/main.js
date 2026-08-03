@@ -8,13 +8,11 @@ const KAREN_REGISTRY = {
     manager: (config) => {
         const karen = new ManagerKaren(config);
         karen.setPlayerRef(game.playerController.player);
-        karen.characterAssetName = 'robot';
         return karen;
     },
     hoa: (config) => {
         const karen = new HOAKaren(config);
         karen.setPlayerRef(game.playerController.player);
-        karen.characterAssetName = 'robot';
         return karen;
     },
     retail_return: (config) => {
@@ -39,8 +37,6 @@ function createKarenFactory(config) {
 
 async function main() {
     console.log('[Main] Starting Hunt the Karens...');
-
-    await game.assetManager.loadCharacterAsset('robot', './assets/models/RobotExpressive.glb');
 
     await game.init(KAREN_REGISTRY);
 

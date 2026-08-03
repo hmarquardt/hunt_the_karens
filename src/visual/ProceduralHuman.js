@@ -267,6 +267,158 @@ export class ProceduralHuman {
         this.materials[type] = material;
     }
 
+    animate(state, time, options = {}) {
+        const { isMoving = false, speed = 0, isAlive = true, hpRatio = 1 } = options;
+
+        this._resetPose();
+
+        switch (state) {
+            case 'idle':
+                this._animateIdle(time);
+                break;
+            case 'walk':
+                this._animateWalk(time, speed);
+                break;
+            case 'confront':
+                this._animateConfront(time);
+                break;
+            case 'hit':
+                this._animateHit(time);
+                break;
+            case 'ability':
+                this._animateAbility(time);
+                break;
+            case 'defeat':
+                this._animateDefeat(time);
+                break;
+        }
+
+        if (!isAlive) {
+            this._animateDefeated(time);
+        }
+    }
+
+    _resetPose() {
+        const bones = this.bones;
+        if (bones.headGroup) {
+            bones.headGroup.rotation.set(0, 0, 0);
+            bones.headGroup.position.y = 1.45;
+        }
+        if (bones.head) bones.head.rotation.set(0, 0, 0);
+        if (bones.leftUpperArm) bones.leftUpperArm.rotation.set(0, 0, 0.15);
+        if (bones.rightUpperArm) bones.rightUpperArm.rotation.set(0, 0, -0.15);
+        if (bones.leftForearm) bones.leftForearm.rotation.set(0, 0, 0.1);
+        if (bones.rightForearm) bones.rightForearm.rotation.set(0, 0, -0.1);
+        if (bones.leftUpperLeg) bones.leftUpperLeg.rotation.set(0, 0, 0);
+        if (bones.rightUpperLeg) bones.rightUpperLeg.rotation.set(0, 0, 0);
+        if (bones.torso) bones.torso.rotation.set(0, 0, 0);
+    }
+
+    _animateIdle(time) {
+        const bob = Math.sin(time * 1.5) * 0.005;
+        const sway = Math.sin(time * 0.8) * 0.01;
+
+        if (this.bones.headGroup) {
+            this.bones.headGroup.position.y = 1.45 + bob;
+            this.bones.headGroup.rotation.y = sway;
+        }
+        if (this.bones.torso) {
+            this.bones.torso.rotation.z = sway * 0.5;
+        }
+    }
+
+    _animateWalk(time, speed) {
+        const stride = Math.min(speed * 2, 3) * 0.15;
+
+        const legSwing = Math.sin(time * 5) * stride;
+        const armSwing = Math.sin(time * 5 + Math.PI) * stride * 0.7;
+
+        if (this.bones.leftUpperLeg) this.bones.leftUpperLeg.rotation.x = legSwing;
+        if (this.bones.rightUpperLeg) this.bones.rightUpperLeg.rotation.x = -legSwing;
+        if (this.bones.leftUpperArm) this.bones.leftUpperArm.rotation.x = armSwing;
+        if (this.bones.rightUpperArm) this.bones.rightUpperArm.rotation.x = -armSwing;
+
+        const bob = Math.abs(Math.sin(time * 5)) * 0.01;
+        if (this.bones.headGroup) this.bones.headGroup.position.y = 1.45 + bob;
+    }
+
+    _animateConfront(time) {
+        const tension = Math.sin(time * 3) * 0.02;
+
+        if (this.bones.headGroup) {
+            this.bones.headGroup.rotation.x = -0.1 + tension;
+            this.bones.headGroup.position.y = 1.45 + Math.abs(tension);
+        }
+
+        if (this.bones.leftUpperArm) {
+            this.bones.leftUpperArm.rotation.z = 0.15 + 0.1;
+            this.bones.leftUpperArm.rotation.x = -0.2;
+        }
+        if (this.bones.rightUpperArm) {
+            this.bones.rightUpperArm.rotation.z = -0.15 - 0.1;
+            this.bones.rightUpperArm.rotation.x = -0.3 + Math.sin(time * 4) * 0.1;
+        }
+        if (this.bones.torso) {
+            this.bones.torso.rotation.x = -0.05;
+        }
+    }
+
+    _animateHit(time) {
+        const recoil = Math.sin(time * 8) * 0.15 * Math.exp(-time * 3);
+
+        if (this.bones.headGroup) {
+            this.bones.headGroup.rotation.x = recoil;
+            this.bones.headGroup.rotation.z = recoil * 0.5;
+        }
+        if (this.bones.torso) {
+            this.bones.torso.rotation.x = recoil * 0.3;
+        }
+    }
+
+    _animateAbility(time) {
+        const windup = Math.sin(time * 2) * 0.1;
+
+        if (this.bones.rightUpperArm) {
+            this.bones.rightUpperArm.rotation.x = -0.5 + windup;
+            this.bones.rightUpperArm.rotation.z = -0.15 - 0.2;
+        }
+        if (this.bones.headGroup) {
+            this.bones.headGroup.rotation.x = -0.15;
+        }
+    }
+
+    _animateDefeat(time) {
+        const slump = Math.min(time * 0.5, 1);
+
+        if (this.bones.torso) {
+            this.bones.torso.rotation.x = slump * 0.4;
+        }
+        if (this.bones.headGroup) {
+            this.bones.headGroup.rotation.x = slump * 0.6;
+            this.bones.headGroup.position.y = 1.45 - slump * 0.3;
+        }
+        if (this.bones.leftUpperArm) this.bones.leftUpperArm.rotation.z = 0.15 + slump * 0.5;
+        if (this.bones.rightUpperArm) this.bones.rightUpperArm.rotation.z = -0.15 - slump * 0.5;
+    }
+
+    _animateDefeated(time) {
+        if (this.bones.torso) {
+            this.bones.torso.rotation.x = 0.8;
+        }
+        if (this.bones.headGroup) {
+            this.bones.headGroup.rotation.x = 1.2;
+            this.bones.headGroup.position.y = 1.15;
+        }
+        if (this.bones.leftUpperArm) {
+            this.bones.leftUpperArm.rotation.z = 0.6;
+            this.bones.leftUpperArm.rotation.x = 0.3;
+        }
+        if (this.bones.rightUpperArm) {
+            this.bones.rightUpperArm.rotation.z = -0.6;
+            this.bones.rightUpperArm.rotation.x = 0.3;
+        }
+    }
+
     dispose() {
         for (const mat of Object.values(this.materials)) {
             mat.dispose();
