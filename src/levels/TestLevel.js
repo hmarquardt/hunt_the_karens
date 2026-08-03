@@ -474,12 +474,84 @@ export class TestLevel extends Level {
     }
 
     _placeLightPoles(sceneManager) {
-        const polePositions = [[-10, -4], [10, -4], [-10, 4], [10, 4], [0, 10]];
-        for (const [x, z] of polePositions) {
-            const pole = this._landscaping.createLightPole(x, z);
-            this._tracker.trackObject(pole);
-            sceneManager.add(pole, false);
+        const positions = [[-10, -4], [10, -4], [-10, 4], [10, 4], [0, 10]];
+        const count = positions.length;
+        const height = 8;
+        const poleMat = this._materials.get('metalGalvanized');
+        const fixtureMat = this._materials.get('metalDark');
+        const concreteMat = this._materials.get('concrete');
+        const lightMat = this._tracker.createMaterial(THREE.MeshStandardMaterial, {
+            color: 0xffffee,
+            emissive: 0xffffcc,
+            emissiveIntensity: 0.05,
+            roughness: 0.2,
+        });
+
+        const dummy = new THREE.Object3D();
+
+        // Pole cylinders
+        const poleGeo = this._tracker.trackGeometry(
+            new THREE.CylinderGeometry(0.06, 0.08, height, 8)
+        );
+        const poleInstances = new THREE.InstancedMesh(poleGeo, poleMat, count);
+        poleInstances.castShadow = true;
+        for (let i = 0; i < count; i++) {
+            dummy.position.set(positions[i][0], height / 2, positions[i][1]);
+            dummy.updateMatrix();
+            poleInstances.setMatrixAt(i, dummy.matrix);
         }
+        sceneManager.add(poleInstances, false);
+
+        // Base cylinders
+        const baseGeo = this._tracker.trackGeometry(
+            new THREE.CylinderGeometry(0.15, 0.18, 0.2, 8)
+        );
+        const baseInstances = new THREE.InstancedMesh(baseGeo, concreteMat, count);
+        baseInstances.castShadow = true;
+        for (let i = 0; i < count; i++) {
+            dummy.position.set(positions[i][0], 0.1, positions[i][1]);
+            dummy.updateMatrix();
+            baseInstances.setMatrixAt(i, dummy.matrix);
+        }
+        sceneManager.add(baseInstances, false);
+
+        // Arms
+        const armGeo = this._tracker.trackGeometry(
+            new THREE.BoxGeometry(2, 0.06, 0.06)
+        );
+        const armInstances = new THREE.InstancedMesh(armGeo, poleMat, count);
+        for (let i = 0; i < count; i++) {
+            dummy.position.set(positions[i][0] + 0.8, height - 0.1, positions[i][1]);
+            dummy.updateMatrix();
+            armInstances.setMatrixAt(i, dummy.matrix);
+        }
+        sceneManager.add(armInstances, false);
+
+        // Lamp heads
+        const lampGeo = this._tracker.trackGeometry(
+            new THREE.BoxGeometry(1.2, 0.08, 0.5)
+        );
+        const lampInstances = new THREE.InstancedMesh(lampGeo, fixtureMat, count);
+        lampInstances.castShadow = true;
+        for (let i = 0; i < count; i++) {
+            dummy.position.set(positions[i][0] + 1.2, height - 0.2, positions[i][1]);
+            dummy.updateMatrix();
+            lampInstances.setMatrixAt(i, dummy.matrix);
+        }
+        sceneManager.add(lampInstances, false);
+
+        // Light surfaces (emissive)
+        const lightGeo = this._tracker.trackGeometry(
+            new THREE.PlaneGeometry(1.1, 0.4)
+        );
+        const lightInstances = new THREE.InstancedMesh(lightGeo, lightMat, count);
+        for (let i = 0; i < count; i++) {
+            dummy.position.set(positions[i][0] + 1.2, height - 0.25, positions[i][1]);
+            dummy.rotation.x = Math.PI / 2;
+            dummy.updateMatrix();
+            lightInstances.setMatrixAt(i, dummy.matrix);
+        }
+        sceneManager.add(lightInstances, false);
     }
 
     _placeProps(sceneManager) {

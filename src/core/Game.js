@@ -183,6 +183,10 @@ export class Game {
 
         await levelInstance.build(this.sceneManager);
 
+        if (typeof levelInstance.getVehicleColliders === 'function') {
+            this.collisionSystem.registerVehicleColliders(levelInstance.getVehicleColliders());
+        }
+
         this.playerController.reset(levelInstance.spawnPoint);
 
         if (this.spawnDirector && factoryFn) {

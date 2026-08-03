@@ -13,6 +13,14 @@ export class Landscaping {
         this.materials = materials;
         this.tracker = resourceTracker;
         this._treeSeed = 42;
+
+        // Shared geometries for trees
+        this._trunkGeo = this.tracker.trackGeometry(
+            new THREE.CylinderGeometry(0.07, 0.1, 1.2, 8)
+        );
+        this._foliageGeo = this.tracker.trackGeometry(
+            new THREE.SphereGeometry(1, 8, 6)
+        );
     }
 
     createLandscapeIsland(x, z, width, depth, options = {}) {
@@ -95,33 +103,32 @@ export class Landscaping {
         const foliageMat = this.materials.get('foliage');
         const foliageMat2 = this.materials.get('foliageDark');
 
-        // Trunk
-        const trunk = new THREE.Mesh(
-            new THREE.CylinderGeometry(trunkRadius * 0.7, trunkRadius, height * 0.4, 8),
-            barkMat
+        // Trunk with shared geometry, scale for size variation
+        const trunk = new THREE.Mesh(this._trunkGeo, barkMat);
+        trunk.scale.set(
+            trunkRadius / 0.085,
+            height * 0.4 / 1.2,
+            trunkRadius / 0.085
         );
         trunk.position.y = height * 0.2;
         trunk.castShadow = true;
         group.add(trunk);
 
-        // Foliage masses (irregular)
+        // Foliage masses (irregular) with shared geometry
         const foliageCount = 3 + Math.floor(rngFn() * 3);
         for (let i = 0; i < foliageCount; i++) {
             const size = 0.8 + rngFn() * 1.2;
             const mat = rngFn() > 0.5 ? foliageMat : foliageMat2;
-            const foliage = new THREE.Mesh(
-                new THREE.SphereGeometry(size, 8, 6),
-                mat
-            );
+            const foliage = new THREE.Mesh(this._foliageGeo, mat);
             foliage.position.set(
                 (rngFn() - 0.5) * 1.5,
                 height * 0.4 + rngFn() * height * 0.4,
                 (rngFn() - 0.5) * 1.5
             );
             foliage.scale.set(
-                0.7 + rngFn() * 0.6,
-                0.6 + rngFn() * 0.5,
-                0.7 + rngFn() * 0.6
+                size * (0.7 + rngFn() * 0.6),
+                size * (0.6 + rngFn() * 0.5),
+                size * (0.7 + rngFn() * 0.6)
             );
             foliage.castShadow = true;
             foliage.receiveShadow = true;
@@ -142,16 +149,13 @@ export class Landscaping {
 
         for (let i = 0; i < count; i++) {
             const size = 0.3 + rngFn() * 0.3;
-            const shrub = new THREE.Mesh(
-                new THREE.SphereGeometry(size, 8, 6),
-                foliageMat
-            );
+            const shrub = new THREE.Mesh(this._foliageGeo, foliageMat);
             shrub.position.set(
                 (rngFn() - 0.5) * 0.4,
                 size * 0.6,
                 (rngFn() - 0.5) * 0.4
             );
-            shrub.scale.y = 0.6 + rngFn() * 0.3;
+            shrub.scale.set(size, size * (0.6 + rngFn() * 0.3), size);
             shrub.castShadow = true;
             shrub.receiveShadow = true;
             group.add(shrub);
@@ -222,10 +226,11 @@ export class Landscaping {
 
     createDistantTree(x, z, rng) {
         const height = 4 + rng() * 4;
-        const tree = new THREE.Mesh(
-            new THREE.ConeGeometry(1 + rng() * 0.5, height, 6),
-            this.materials.get('foliageDark')
+        const geo = this.tracker.trackGeometry(
+            new THREE.ConeGeometry(1, 1, 6)
         );
+        const tree = new THREE.Mesh(geo, this.materials.get('foliageDark'));
+        tree.scale.set(1 + rng() * 0.5, height, 1 + rng() * 0.5);
         tree.position.set(x, height / 2, z);
         tree.castShadow = true;
         return tree;

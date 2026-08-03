@@ -19,6 +19,15 @@ export class CollisionSystem {
         this.debugHelpers = [];
         this._hitCooldowns = new Map();
         this._onEnemyDefeated = null;
+        this.vehicleColliders = [];
+    }
+
+    registerVehicleColliders(colliders) {
+        this.vehicleColliders = colliders || [];
+    }
+
+    clearVehicleColliders() {
+        this.vehicleColliders = [];
     }
 
     setProjectileSystem(ps) {
@@ -90,6 +99,16 @@ export class CollisionSystem {
         for (const proj of projectiles) {
             if (!proj.active || !proj.mesh) continue;
 
+            // Check vehicle collisions first
+            for (const collider of this.vehicleColliders) {
+                if (this._checkProjectileVehicleCollision(proj, collider)) {
+                    this._onProjectileVehicleHit(proj, collider);
+                    break;
+                }
+            }
+
+            if (!proj.active) continue;
+
             for (const enemy of this.enemies) {
                 if (!enemy.isAlive) continue;
 
@@ -113,6 +132,52 @@ export class CollisionSystem {
                 this._hitCooldowns.delete(key);
             }
         }
+    }
+
+    _checkProjectileVehicleCollision(proj, collider) {
+        const projBounds = proj.getBounds();
+        if (!projBounds) return false;
+
+        const cPos = collider.getWorldPosition(_scratchVec1);
+        const radius = collider.geometry?.parameters?.radius || 1;
+        const height = collider.geometry?.parameters?.height || 0.1;
+
+        _scratchVec2.set(
+            projBounds.center.x - cPos.x,
+            0,
+            projBounds.center.z - cPos.z
+        );
+
+        const horizontalDist = _scratchVec2.length();
+        const combinedRadius = projBounds.radius + radius;
+
+        if (horizontalDist <= combinedRadius) {
+            const projBottom = projBounds.center.y - projBounds.radius;
+            const projTop = projBounds.center.y + projBounds.radius;
+            const vehBottom = cPos.y - height / 2;
+            const vehTop = cPos.y + height / 2;
+
+            return projTop >= vehBottom && projBottom <= vehTop;
+        }
+
+        return false;
+    }
+
+    _onProjectileVehicleHit(proj, collider) {
+        if (this.vfxSystem) {
+            const hitPos = proj.mesh.position.clone();
+            this.vfxSystem.spawnImpact(hitPos, 0, 0, 'spark');
+        }
+
+        if (this.audioSystem) {
+            this.audioSystem.playHit();
+        }
+
+        if (this.hud) {
+            this.hud.showHitFeedback('Vehicle hit!');
+        }
+
+        proj.deactivate();
     }
 
     _checkProjectileEnemyCollision(proj, enemy) {
@@ -266,5 +331,6 @@ export class CollisionSystem {
     clear() {
         this._hitCooldowns.clear();
         this.enemies = [];
+        this.vehicleColliders = [];
     }
 }

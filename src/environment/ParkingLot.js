@@ -73,110 +73,138 @@ export class ParkingLot {
         const whiteMat = this.materials.get('paintWhite');
         const yellowMat = this.materials.get('paintYellow');
 
-        // Parking stall lines (two rows facing each other)
         const stallWidth = 2.8;
         const stallLength = 4.5;
         const startX = -8;
         const endX = 8;
         const rowZ = [-2, 4];
 
-        // Center double yellow line between rows
-        const centerY = new THREE.Mesh(
-            new THREE.PlaneGeometry(0.15, 18),
-            yellowMat
-        );
-        centerY.rotation.x = -Math.PI / 2;
-        centerY.position.set(0, 0.025, 1);
-        sceneManager.add(centerY, false);
+        // Collect stripe positions/matrices
+        const whiteStripes = [];
+        const yellowStripes = [];
+
+        // Center double yellow line
+        yellowStripes.push({
+            x: 0, z: 1, w: 0.15, d: 18, rot: 0
+        });
 
         // Parking stall lines
         for (const rowZPos of rowZ) {
             for (let x = startX; x <= endX; x += stallWidth) {
-                // Vertical stall divider
-                const line = new THREE.Mesh(
-                    new THREE.PlaneGeometry(0.1, stallLength),
-                    whiteMat
-                );
-                line.rotation.x = -Math.PI / 2;
-                line.position.set(x, 0.025, rowZPos + (rowZPos > 0 ? stallLength / 2 : -stallLength / 2));
-                sceneManager.add(line, false);
+                whiteStripes.push({
+                    x,
+                    z: rowZPos + (rowZPos > 0 ? stallLength / 2 : -stallLength / 2),
+                    w: 0.1,
+                    d: stallLength,
+                    rot: 0
+                });
             }
         }
 
         // Row end lines
         for (const rowZPos of rowZ) {
-            const endLine = new THREE.Mesh(
-                new THREE.PlaneGeometry(18, 0.1),
-                whiteMat
-            );
-            endLine.rotation.x = -Math.PI / 2;
-            endLine.position.set(0, 0.025, rowZPos + (rowZPos > 0 ? stallLength : -stallLength));
-            sceneManager.add(endLine, false);
+            whiteStripes.push({
+                x: 0,
+                z: rowZPos + (rowZPos > 0 ? stallLength : -stallLength),
+                w: 18,
+                d: 0.1,
+                rot: 0
+            });
         }
 
-        // Directional arrows on driving lanes
-        const arrowPositions = [
+        // Directional arrows (simplified as rectangles)
+        const arrowData = [
             { x: -4, z: -1, rot: Math.PI },
             { x: 4, z: 3, rot: 0 },
         ];
-        for (const arrow of arrowPositions) {
-            const arrowPlane = new THREE.Mesh(
-                new THREE.PlaneGeometry(1, 2.5),
-                whiteMat
-            );
-            arrowPlane.rotation.x = -Math.PI / 2;
-            arrowPlane.rotation.z = arrow.rot;
-            arrowPlane.position.set(arrow.x, 0.025, arrow.z);
-            sceneManager.add(arrowPlane, false);
+        for (const arrow of arrowData) {
+            whiteStripes.push({
+                x: arrow.x,
+                z: arrow.z,
+                w: 1,
+                d: 2.5,
+                rot: arrow.rot
+            });
         }
 
-        // Stop bar at entrance
-        const stopBar = new THREE.Mesh(
-            new THREE.PlaneGeometry(3, 0.2),
-            whiteMat
-        );
-        stopBar.rotation.x = -Math.PI / 2;
-        stopBar.position.set(0, 0.025, 15);
-        sceneManager.add(stopBar, false);
+        // Stop bar
+        whiteStripes.push({
+            x: 0,
+            z: 15,
+            w: 3,
+            d: 0.2,
+            rot: 0
+        });
+
+        // Create InstancedMesh for white stripes
+        if (whiteStripes.length > 0) {
+            const geo = this.tracker.trackGeometry(
+                new THREE.PlaneGeometry(1, 1)
+            );
+            const instances = new THREE.InstancedMesh(geo, whiteMat, whiteStripes.length);
+            const dummy = new THREE.Object3D();
+            for (let i = 0; i < whiteStripes.length; i++) {
+                const s = whiteStripes[i];
+                dummy.position.set(s.x, 0.025, s.z);
+                dummy.rotation.x = -Math.PI / 2;
+                dummy.rotation.z = s.rot;
+                dummy.scale.set(s.w, s.d, 1);
+                dummy.updateMatrix();
+                instances.setMatrixAt(i, dummy.matrix);
+            }
+            sceneManager.add(instances, false);
+        }
+
+        // Create InstancedMesh for yellow stripes
+        if (yellowStripes.length > 0) {
+            const geo = this.tracker.trackGeometry(
+                new THREE.PlaneGeometry(1, 1)
+            );
+            const instances = new THREE.InstancedMesh(geo, yellowMat, yellowStripes.length);
+            const dummy = new THREE.Object3D();
+            for (let i = 0; i < yellowStripes.length; i++) {
+                const s = yellowStripes[i];
+                dummy.position.set(s.x, 0.025, s.z);
+                dummy.rotation.x = -Math.PI / 2;
+                dummy.rotation.z = s.rot;
+                dummy.scale.set(s.w, s.d, 1);
+                dummy.updateMatrix();
+                instances.setMatrixAt(i, dummy.matrix);
+            }
+            sceneManager.add(instances, false);
+        }
     }
 
     _buildAccessibleSpaces(sceneManager) {
         const whiteMat = this.materials.get('paintWhite');
         const blueMat = this.materials.get('paintBlue');
 
-        // Accessible spaces near entrance (closest to store, x = -3 to -1)
         const accessibleX = -3;
         const accessibleZ = -4;
-
-        // Wider stall
         const stallWidth = 3.6;
         const stallLength = 4.5;
 
-        // Boundary lines
-        const leftLine = new THREE.Mesh(
-            new THREE.PlaneGeometry(0.12, stallLength),
-            whiteMat
-        );
-        leftLine.rotation.x = -Math.PI / 2;
-        leftLine.position.set(accessibleX - stallWidth / 2, 0.025, accessibleZ);
-        sceneManager.add(leftLine, false);
+        // Boundary lines + access aisle as InstancedMesh
+        const lineData = [
+            { x: accessibleX - stallWidth / 2, z: accessibleZ, w: 0.12, d: stallLength, mat: whiteMat },
+            { x: accessibleX + stallWidth / 2, z: accessibleZ, w: 0.12, d: stallLength, mat: whiteMat },
+            { x: accessibleX + stallWidth / 2 + 0.75, z: accessibleZ, w: 1.5, d: stallLength, mat: whiteMat },
+        ];
 
-        const rightLine = new THREE.Mesh(
-            new THREE.PlaneGeometry(0.12, stallLength),
-            whiteMat
+        const geo = this.tracker.trackGeometry(
+            new THREE.PlaneGeometry(1, 1)
         );
-        rightLine.rotation.x = -Math.PI / 2;
-        rightLine.position.set(accessibleX + stallWidth / 2, 0.025, accessibleZ);
-        sceneManager.add(rightLine, false);
-
-        // Access aisle (hashed area)
-        const aisle = new THREE.Mesh(
-            new THREE.PlaneGeometry(1.5, stallLength),
-            whiteMat
-        );
-        aisle.rotation.x = -Math.PI / 2;
-        aisle.position.set(accessibleX + stallWidth / 2 + 0.75, 0.025, accessibleZ);
-        sceneManager.add(aisle, false);
+        const instances = new THREE.InstancedMesh(geo, whiteMat, lineData.length);
+        const dummy = new THREE.Object3D();
+        for (let i = 0; i < lineData.length; i++) {
+            const l = lineData[i];
+            dummy.position.set(l.x, 0.025, l.z);
+            dummy.rotation.x = -Math.PI / 2;
+            dummy.scale.set(l.w, l.d, 1);
+            dummy.updateMatrix();
+            instances.setMatrixAt(i, dummy.matrix);
+        }
+        sceneManager.add(instances, false);
 
         // Blue wheelchair symbol on asphalt
         const symbolCanvas = document.createElement('canvas');
@@ -327,28 +355,29 @@ export class ParkingLot {
         const concreteMat = this.materials.get('concrete');
         const yellowMat = this.materials.get('curbYellow');
 
-        // Curb along sidewalk edge
         const curbSegments = [
-            // Front of sidewalk
             { x: 0, z: -6.5, w: 22, h: 0.15, d: 0.2 },
-            // Side curbs
             { x: -11, z: -8, w: 0.2, h: 0.15, d: 3 },
             { x: 11, z: -8, w: 0.2, h: 0.15, d: 3 },
         ];
 
-        for (const seg of curbSegments) {
-            const curb = new THREE.Mesh(
-                new THREE.BoxGeometry(seg.w, seg.h, seg.d),
-                concreteMat
-            );
-            curb.position.set(seg.x, seg.h / 2, seg.z);
-            curb.castShadow = true;
-            curb.receiveShadow = true;
-            sceneManager.add(curb, true);
-            this._collidables.push(curb);
+        const geo = this.tracker.trackGeometry(
+            new THREE.BoxGeometry(1, 1, 1)
+        );
+        const instances = new THREE.InstancedMesh(geo, concreteMat, curbSegments.length);
+        instances.castShadow = true;
+        instances.receiveShadow = true;
+        const dummy = new THREE.Object3D();
+        for (let i = 0; i < curbSegments.length; i++) {
+            const seg = curbSegments[i];
+            dummy.position.set(seg.x, seg.h / 2, seg.z);
+            dummy.scale.set(seg.w, seg.h, seg.d);
+            dummy.updateMatrix();
+            instances.setMatrixAt(i, dummy.matrix);
         }
+        sceneManager.add(instances, true);
 
-        // Yellow painted curb (fire lane)
+        // Yellow painted curb (fire lane) - single mesh
         const yellowCurb = new THREE.Mesh(
             new THREE.BoxGeometry(15, 0.12, 0.15),
             yellowMat
@@ -361,70 +390,96 @@ export class ParkingLot {
     _buildBollards(sceneManager) {
         const yellowMat = this.materials.get('bollardYellow');
         const concreteMat = this.materials.get('bollardConcrete');
+        const whiteMat = this.tracker.createMaterial(THREE.MeshStandardMaterial, {
+            color: 0xffffff,
+            roughness: 0.3,
+            metalness: 0.5,
+        });
 
-        // Bollards near entrance
-        const bollardPositions = [
+        const positions = [
             [-4, -6.5],
             [-2.5, -6.5],
             [2.5, -6.5],
             [4, -6.5],
-            // Extra bollards along walkway
             [-2, -3.5],
             [2, -3.5],
         ];
 
-        for (const [x, z] of bollardPositions) {
-            const group = new THREE.Group();
+        const count = positions.length;
 
-            // Concrete base
-            const base = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.15, 0.18, 0.1, 8),
-                concreteMat
+        // Concrete base geometry (shared)
+        const baseGeo = this.tracker.trackGeometry(
+            new THREE.CylinderGeometry(0.15, 0.18, 0.1, 8)
+        );
+        // Bollard body geometry (shared)
+        const bollardGeo = this.tracker.trackGeometry(
+            new THREE.CylinderGeometry(0.08, 0.08, 0.9, 8)
+        );
+        // Reflective stripe geometry (shared)
+        const stripeGeo = this.tracker.trackGeometry(
+            new THREE.CylinderGeometry(0.085, 0.085, 0.15, 8)
+        );
+
+        // InstancedMesh for concrete bases
+        const baseInstances = new THREE.InstancedMesh(baseGeo, concreteMat, count);
+        baseInstances.castShadow = false;
+        baseInstances.receiveShadow = true;
+        const dummy = new THREE.Object3D();
+        for (let i = 0; i < count; i++) {
+            dummy.position.set(
+                positions[i][0] + (Math.random() - 0.5) * 0.1,
+                0.05,
+                positions[i][1] + (Math.random() - 0.5) * 0.1
             );
-            base.position.y = 0.05;
-            group.add(base);
-
-            // Steel bollard
-            const bollard = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.08, 0.08, 0.9, 8),
-                yellowMat
-            );
-            bollard.position.y = 0.55;
-            bollard.castShadow = true;
-            group.add(bollard);
-
-            // Reflective stripe
-            const stripe = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.085, 0.085, 0.15, 8),
-                new THREE.MeshStandardMaterial({
-                    color: 0xffffff,
-                    roughness: 0.3,
-                    metalness: 0.5,
-                })
-            );
-            stripe.position.y = 0.7;
-            group.add(stripe);
-
-            // Slight position variation for realism
-            group.position.set(x + (Math.random() - 0.5) * 0.1, 0, z + (Math.random() - 0.5) * 0.1);
-            sceneManager.add(group, true);
-            this._collidables.push(bollard);
+            dummy.updateMatrix();
+            baseInstances.setMatrixAt(i, dummy.matrix);
         }
+        sceneManager.add(baseInstances, false);
+
+        // InstancedMesh for bollard bodies
+        const bollardInstances = new THREE.InstancedMesh(bollardGeo, yellowMat, count);
+        bollardInstances.castShadow = true;
+        for (let i = 0; i < count; i++) {
+            dummy.position.set(
+                positions[i][0] + (Math.random() - 0.5) * 0.1,
+                0.55,
+                positions[i][1] + (Math.random() - 0.5) * 0.1
+            );
+            dummy.updateMatrix();
+            bollardInstances.setMatrixAt(i, dummy.matrix);
+        }
+        sceneManager.add(bollardInstances, false);
+
+        // InstancedMesh for reflective stripes
+        const stripeInstances = new THREE.InstancedMesh(stripeGeo, whiteMat, count);
+        for (let i = 0; i < count; i++) {
+            dummy.position.set(
+                positions[i][0] + (Math.random() - 0.5) * 0.1,
+                0.7,
+                positions[i][1] + (Math.random() - 0.5) * 0.1
+            );
+            dummy.updateMatrix();
+            stripeInstances.setMatrixAt(i, dummy.matrix);
+        }
+        sceneManager.add(stripeInstances, false);
     }
 
     _buildCrosswalk(sceneManager) {
         const whiteMat = this.materials.get('paintWhite');
-
-        // Crosswalk stripes across the driving lane
-        for (let i = 0; i < 8; i++) {
-            const stripe = new THREE.Mesh(
-                new THREE.PlaneGeometry(0.4, 3),
-                whiteMat
-            );
-            stripe.rotation.x = -Math.PI / 2;
-            stripe.position.set(-1.5 + i * 0.6, 0.026, 0);
-            sceneManager.add(stripe, false);
+        const geo = this.tracker.trackGeometry(
+            new THREE.PlaneGeometry(1, 1)
+        );
+        const count = 8;
+        const instances = new THREE.InstancedMesh(geo, whiteMat, count);
+        const dummy = new THREE.Object3D();
+        for (let i = 0; i < count; i++) {
+            dummy.position.set(-1.5 + i * 0.6, 0.026, 0);
+            dummy.rotation.x = -Math.PI / 2;
+            dummy.scale.set(0.4, 3, 1);
+            dummy.updateMatrix();
+            instances.setMatrixAt(i, dummy.matrix);
         }
+        sceneManager.add(instances, false);
     }
 
     _buildEntranceDrive(sceneManager) {

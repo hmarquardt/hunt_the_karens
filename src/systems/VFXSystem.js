@@ -14,7 +14,7 @@ class ImpactEffect {
     spawn(scene, position, score, points, effectType, statusEffect) {
         this.active = true;
         this.age = 0;
-        this.lifetime = effectType === 'splash' ? 0.8 : 1.0;
+        this.lifetime = effectType === 'splash' ? 0.8 : effectType === 'spark' ? 0.5 : 1.0;
         this.position = position.clone();
         this.effectType = effectType || 'thud';
 
@@ -24,11 +24,43 @@ class ImpactEffect {
         } else if (this.effectType === 'ceramic') {
             this._createCeramicBurst(scene, position);
             this._createImpactRing(scene, position, 0xdd4444);
+        } else if (this.effectType === 'spark') {
+            this._createSparkBurst(scene, position);
+            this._createImpactRing(scene, position, 0xffaa33);
         } else {
             this._createImpactBurst(scene, position);
             this._createImpactRing(scene, position, 0xff6b6b);
         }
         this._createScoreText(scene, position, score, points);
+    }
+
+    _createSparkBurst(scene, position) {
+        const count = 6;
+        const particles = [];
+
+        for (let i = 0; i < count; i++) {
+            const geo = new THREE.SphereGeometry(0.02, 3, 3);
+            const mat = new THREE.MeshBasicMaterial({
+                color: 0xffcc44,
+                transparent: true,
+                opacity: 1,
+            });
+            const particle = new THREE.Mesh(geo, mat);
+            particle.position.copy(position);
+
+            const direction = new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                Math.random() * 1.0 + 0.5,
+                (Math.random() - 0.5) * 2
+            ).normalize();
+
+            particle.userData.velocity = direction.multiplyScalar(3 + Math.random() * 2);
+            particle.userData.life = 0.2 + Math.random() * 0.2;
+            particles.push(particle);
+            scene.add(particle);
+        }
+
+        this.particles = particles;
     }
 
     _createImpactBurst(scene, position) {
