@@ -336,6 +336,7 @@ export class CollisionSystem {
     }
 
     _onProjectileVehicleHit(proj, collider, result) {
+        proj.hitSomething = true;
         const hitPos = result.point || proj.mesh.position.clone();
         const impactType = proj.impactEffect || 'thud';
 
@@ -357,6 +358,11 @@ export class CollisionSystem {
             } else {
                 this.audioSystem.playHit();
             }
+        }
+
+        // Track as miss (resets combo)
+        if (this.scoreSystem) {
+            this.scoreSystem.registerMiss();
         }
 
         // Occasional comedic HUD feedback (not on every hit)
@@ -437,6 +443,7 @@ export class CollisionSystem {
     }
 
     _onProjectileEnemyHit(proj, enemy) {
+        proj.hitSomething = true;
         const wasAlive = enemy.isAlive;
         enemy.takeDamage(proj.damage, proj);
 

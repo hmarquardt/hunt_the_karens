@@ -32,6 +32,7 @@ class Projectile {
         this.statusDuration = 0;
         this.splashRadius = 0;
         this.tags = [];
+        this.hitSomething = false;
     }
 
     init(config) {
@@ -48,6 +49,7 @@ class Projectile {
         this.age = 0;
         this.bounceCount = 0;
         this.active = true;
+        this.hitSomething = false;
         this.impactEffect = config.impactEffect || 'thud';
         this.statusEffect = config.statusEffect || null;
         this.statusDuration = config.statusDuration || 0;
@@ -223,6 +225,9 @@ export class ProjectileSystem {
             p.update(delta);
 
             if (!p.active) {
+                if (!p.hitSomething && this.onMiss) {
+                    this.onMiss();
+                }
                 this.scene.remove(p.mesh);
                 if (p.debugLine) {
                     this.scene.remove(p.debugLine);

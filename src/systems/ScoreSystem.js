@@ -7,6 +7,7 @@ export class ScoreSystem {
         this.combo = 0;
         this.comboTimer = 0;
         this.totalHits = 0;
+        this.totalMisses = 0;
         this.totalDefeated = 0;
         this.hud = null;
     }
@@ -37,6 +38,17 @@ export class ScoreSystem {
         return { score: this.score, combo: this.combo, earned };
     }
 
+    registerMiss() {
+        this.totalMisses++;
+        this.combo = 0;
+        this.comboTimer = 0;
+
+        if (this.hud) {
+            this.hud.updateScore(this.score);
+            this.hud.updateCombo(this.combo);
+        }
+    }
+
     registerDefeat(points) {
         const basePoints = points || 100;
         const comboMultiplier = 1 + (this.combo - 1) * 0.25;
@@ -51,11 +63,18 @@ export class ScoreSystem {
         return { score: this.score, combo: this.combo, earned };
     }
 
+    getAccuracy() {
+        const totalShots = this.totalHits + this.totalMisses;
+        if (totalShots === 0) return 0;
+        return Math.round((this.totalHits / totalShots) * 100);
+    }
+
     reset() {
         this.score = 0;
         this.combo = 0;
         this.comboTimer = 0;
         this.totalHits = 0;
+        this.totalMisses = 0;
         this.totalDefeated = 0;
     }
 }

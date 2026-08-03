@@ -85,6 +85,7 @@ export class Game {
         this.collisionSystem.setWorldEffectSystem(this.worldEffectSystem);
         this.collisionSystem.setStatusDefs(STATUS_DEFS);
         this.collisionSystem.setScene(this.sceneManager.scene);
+        this.projectileSystem.onMiss = () => this.scoreSystem.registerMiss();
         this.worldEffectSystem.setStatusDefs(STATUS_DEFS);
         this.collisionSystem.setOnEnemyDefeated((enemy) => {
             this._onEnemyDefeated(enemy);
@@ -93,6 +94,10 @@ export class Game {
         this.abilityContext = {
             worldEffectSystem: this.worldEffectSystem,
             playerStatusController: this.playerController.statusEffects,
+            drainComposure: (amount) => {
+                this._composure = Math.max(0, this._composure - amount);
+                this.hud.updateComposure(Math.round(this._composure));
+            },
         };
 
         this.scoreSystem.setHUD(this.hud);
@@ -318,7 +323,7 @@ export class Game {
             victory: this.runStats.victory,
             score: this.runStats.score,
             time: this.runStats.totalTime,
-            accuracy: this.runStats.getAccuracy(),
+            accuracy: this.scoreSystem.getAccuracy(),
             combo: this.runStats.highestCombo,
             incidents: this.runStats.incidentsResolved,
             composure: Math.round(this._composure),

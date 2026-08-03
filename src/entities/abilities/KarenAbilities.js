@@ -71,6 +71,11 @@ export class CallManagerAbility extends KarenAbility {
     _onExecute() {
         this._clearTelegraphVFX();
 
+        // Drain composure
+        if (this.context?.drainComposure) {
+            this.context.drainComposure(15);
+        }
+
         if (!this.playerStatusController?.add) {
             console.warn('[CallManagerAbility] Missing playerStatusController — ESCALATED not applied');
             return;
@@ -230,6 +235,11 @@ export class ViolationNoticeAbility extends KarenAbility {
 
     _onExecute() {
         this._clearTelegraphVFX();
+
+        // Drain composure
+        if (this.context?.drainComposure) {
+            this.context.drainComposure(12);
+        }
 
         if (!this.karen) return;
         if (!this.worldEffectSystem?.add) {
@@ -392,6 +402,11 @@ export class ReturnWithoutReceiptAbility extends KarenAbility {
 
     _onExecute() {
         this._clearTelegraphVFX();
+
+        // Drain composure
+        if (this.context?.drainComposure) {
+            this.context.drainComposure(18);
+        }
 
         if (!this.karen) return;
         if (!this.worldEffectSystem?.add) {
