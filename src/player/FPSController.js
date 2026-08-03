@@ -17,6 +17,9 @@ export class FPSController {
         this.speedMultiplier = 1.0;
         this.statusEffects = new StatusEffectController();
 
+        this._cameraImpulse = new THREE.Vector3();
+        this._cameraImpulseDecay = 8;
+
         this._onPointerLockError = this._onPointerLockError.bind(this);
     }
 
@@ -63,8 +66,31 @@ export class FPSController {
         this._handleMovement(delta);
         this._handleGravity(delta);
         this._handleCollisions();
+        this._applyCameraImpulse(delta);
 
         this.camera.position.copy(this.player.getEyePosition());
+    }
+
+    _applyCameraImpulse(delta) {
+        if (this._cameraImpulse.lengthSq() < 0.0001) return;
+
+        this.camera.position.add(this._cameraImpulse);
+        this._cameraImpulse.multiplyScalar(Math.exp(-this._cameraImpulseDecay * delta));
+    }
+
+    applyHitFeedback(weaponType) {
+        const intensities = {
+            croc: 0.02,
+            waterBalloon: 0.005,
+            gardenGnome: 0.04,
+        };
+        const intensity = intensities[weaponType] || 0.02;
+
+        this._cameraImpulse.set(
+            (Math.random() - 0.5) * intensity,
+            Math.random() * intensity * 0.5,
+            (Math.random() - 0.5) * intensity
+        );
     }
 
     _handleRotation() {

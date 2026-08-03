@@ -16,7 +16,9 @@ export class NPC {
         this.colliderHeight = config.colliderHeight || 1.6;
         this.state = 'idle';
         this.stateTimer = 0;
-        this._buildMesh(config);
+        if (config.buildDefaultMesh !== false) {
+            this._buildMesh(config);
+        }
     }
 
     _buildMesh(config) {

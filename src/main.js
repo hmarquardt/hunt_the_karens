@@ -8,11 +8,17 @@ const KAREN_REGISTRY = {
     manager: (config) => {
         const karen = new ManagerKaren(config);
         karen.setPlayerRef(game.playerController.player);
+        karen.onImpact = (proj) => {
+            game.playerController.applyHitFeedback(proj?.weaponType || 'croc');
+        };
         return karen;
     },
     hoa: (config) => {
         const karen = new HOAKaren(config);
         karen.setPlayerRef(game.playerController.player);
+        karen.onImpact = (proj) => {
+            game.playerController.applyHitFeedback(proj?.weaponType || 'croc');
+        };
         return karen;
     },
     retail_return: (config) => {
@@ -24,6 +30,9 @@ const KAREN_REGISTRY = {
         };
         const karen = new RetailReturnKaren(karenConfig);
         karen.setPlayerRef(game.playerController.player);
+        karen.onImpact = (proj) => {
+            game.playerController.applyHitFeedback(proj?.weaponType || 'croc');
+        };
         return karen;
     },
 };

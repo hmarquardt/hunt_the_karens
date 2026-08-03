@@ -7,14 +7,17 @@ export class ProceduralHuman {
         this.group = new THREE.Group();
         this.bones = {};
         this.materials = {};
+        this._trackedGeometries = new Set();
+        this._trackedMaterials = new Set();
+        this._accessoryMeshes = [];
         this._build(config);
     }
 
     _build(config) {
         this._createMaterials(config);
-        this._createBody();
-        this._createHead();
-        this._createLimbs();
+        this._createBody(config);
+        this._createHead(config);
+        this._createLimbs(config);
     }
 
     _createMaterials(config) {
@@ -57,51 +60,98 @@ export class ProceduralHuman {
             roughness: 0.6,
             metalness: 0.0,
         });
+
+        for (const mat of Object.values(this.materials)) {
+            this._trackedMaterials.add(mat);
+        }
     }
 
-    _createBody() {
-        const bodyGroup = new THREE.Group();
-        bodyGroup.name = 'body';
-
+    _createBody(config) {
         const scale = this._bodyScale();
+        const hipsY = 0.7 * scale.height;
+
+        const bodyRoot = new THREE.Group();
+        bodyRoot.name = 'bodyRoot';
+        bodyRoot.position.y = hipsY;
+        this.group.add(bodyRoot);
+        this.bones.bodyRoot = bodyRoot;
+
+        // Hips
+        const hipsGeo = new THREE.CylinderGeometry(0.16 * scale.width, 0.14 * scale.width, 0.15 * scale.height, 10);
+        this._trackedGeometries.add(hipsGeo);
+        const hips = new THREE.Mesh(hipsGeo, this.materials.outfit);
+        hips.castShadow = true;
+        bodyRoot.add(hips);
+        this.bones.hips = hips;
+
+        // Torso pivot
+        const torsoPivot = new THREE.Group();
+        torsoPivot.name = 'torsoPivot';
+        torsoPivot.position.y = 0.25 * scale.height;
+        bodyRoot.add(torsoPivot);
+        this.bones.torsoPivot = torsoPivot;
 
         // Torso
         const torsoGeo = new THREE.CylinderGeometry(0.18 * scale.width, 0.15 * scale.width, 0.55 * scale.height, 10);
+        this._trackedGeometries.add(torsoGeo);
         const torso = new THREE.Mesh(torsoGeo, this.materials.outfit);
-        torso.position.y = 0.95 * scale.height;
         torso.castShadow = true;
-        bodyGroup.add(torso);
+        torsoPivot.add(torso);
         this.bones.torso = torso;
 
         // Chest
         const chestGeo = new THREE.CylinderGeometry(0.2 * scale.width, 0.18 * scale.width, 0.25 * scale.height, 10);
+        this._trackedGeometries.add(chestGeo);
         const chest = new THREE.Mesh(chestGeo, this.materials.outfit);
-        chest.position.y = 1.15 * scale.height;
+        chest.position.y = 0.2 * scale.height;
         chest.castShadow = true;
-        bodyGroup.add(chest);
+        torsoPivot.add(chest);
         this.bones.chest = chest;
 
-        // Hips
-        const hipsGeo = new THREE.CylinderGeometry(0.16 * scale.width, 0.14 * scale.width, 0.15 * scale.height, 10);
-        const hips = new THREE.Mesh(hipsGeo, this.materials.outfit);
-        hips.position.y = 0.7 * scale.height;
-        hips.castShadow = true;
-        bodyGroup.add(hips);
-        this.bones.hips = hips;
+        // Head pivot
+        const headPivot = new THREE.Group();
+        headPivot.name = 'headPivot';
+        headPivot.position.y = 0.5 * scale.height;
+        torsoPivot.add(headPivot);
+        this.bones.headPivot = headPivot;
 
-        this.group.add(bodyGroup);
-        this.bones.body = bodyGroup;
+        // Left shoulder pivot
+        const leftShoulderPivot = new THREE.Group();
+        leftShoulderPivot.name = 'leftShoulderPivot';
+        leftShoulderPivot.position.set(-0.22 * scale.width, 0.1 * scale.height, 0);
+        torsoPivot.add(leftShoulderPivot);
+        this.bones.leftShoulderPivot = leftShoulderPivot;
+
+        // Right shoulder pivot
+        const rightShoulderPivot = new THREE.Group();
+        rightShoulderPivot.name = 'rightShoulderPivot';
+        rightShoulderPivot.position.set(0.22 * scale.width, 0.1 * scale.height, 0);
+        torsoPivot.add(rightShoulderPivot);
+        this.bones.rightShoulderPivot = rightShoulderPivot;
+
+        // Left hip pivot
+        const leftHipPivot = new THREE.Group();
+        leftHipPivot.name = 'leftHipPivot';
+        leftHipPivot.position.set(-0.08 * scale.width, -0.2 * scale.height, 0);
+        bodyRoot.add(leftHipPivot);
+        this.bones.leftHipPivot = leftHipPivot;
+
+        // Right hip pivot
+        const rightHipPivot = new THREE.Group();
+        rightHipPivot.name = 'rightHipPivot';
+        rightHipPivot.position.set(0.08 * scale.width, -0.2 * scale.height, 0);
+        bodyRoot.add(rightHipPivot);
+        this.bones.rightHipPivot = rightHipPivot;
     }
 
-    _createHead() {
-        const headGroup = new THREE.Group();
-        headGroup.name = 'head';
-        headGroup.position.y = 1.45;
-
+    _createHead(config) {
         const scale = this._bodyScale();
 
-        // Head
+        const headGroup = new THREE.Group();
+        headGroup.name = 'head';
+
         const headGeo = new THREE.SphereGeometry(0.14 * scale.width, 12, 10);
+        this._trackedGeometries.add(headGeo);
         const head = new THREE.Mesh(headGeo, this.materials.skin);
         head.position.y = 0.14;
         head.scale.set(1, 1.1, 0.95);
@@ -109,8 +159,8 @@ export class ProceduralHuman {
         headGroup.add(head);
         this.bones.head = head;
 
-        // Eyes
         const eyeGeo = new THREE.SphereGeometry(0.02, 8, 8);
+        this._trackedGeometries.add(eyeGeo);
         const leftEye = new THREE.Mesh(eyeGeo, this.materials.eyes);
         leftEye.position.set(-0.045, 0.15, 0.12);
         headGroup.add(leftEye);
@@ -119,117 +169,162 @@ export class ProceduralHuman {
         rightEye.position.set(0.045, 0.15, 0.12);
         headGroup.add(rightEye);
 
-        // Mouth
         const mouthGeo = new THREE.BoxGeometry(0.06, 0.015, 0.02);
+        this._trackedGeometries.add(mouthGeo);
         const mouth = new THREE.Mesh(mouthGeo, this.materials.mouth);
         mouth.position.set(0, 0.07, 0.13);
         headGroup.add(mouth);
         this.bones.mouth = mouth;
 
-        // Neck
         const neckGeo = new THREE.CylinderGeometry(0.05, 0.06, 0.1, 8);
+        this._trackedGeometries.add(neckGeo);
         const neck = new THREE.Mesh(neckGeo, this.materials.skin);
         neck.position.y = 0.02;
         neck.castShadow = true;
         headGroup.add(neck);
 
-        this.group.add(headGroup);
+        this.bones.headPivot.add(headGroup);
         this.bones.headGroup = headGroup;
     }
 
-    _createLimbs() {
+    _createLimbs(config) {
         const scale = this._bodyScale();
 
-        // Upper legs
-        const upperLegGeo = new THREE.CylinderGeometry(0.07 * scale.width, 0.06 * scale.width, 0.4 * scale.height, 8);
-
-        const leftUpperLeg = new THREE.Mesh(upperLegGeo, this.materials.outfit);
-        leftUpperLeg.position.set(-0.08 * scale.width, 0.5 * scale.height, 0);
-        leftUpperLeg.castShadow = true;
-        this.group.add(leftUpperLeg);
-        this.bones.leftUpperLeg = leftUpperLeg;
-
-        const rightUpperLeg = new THREE.Mesh(upperLegGeo, this.materials.outfit);
-        rightUpperLeg.position.set(0.08 * scale.width, 0.5 * scale.height, 0);
-        rightUpperLeg.castShadow = true;
-        this.bones.rightUpperLeg = rightUpperLeg;
-
-        // Lower legs
-        const lowerLegGeo = new THREE.CylinderGeometry(0.055 * scale.width, 0.045 * scale.width, 0.4 * scale.height, 8);
-
-        const leftLowerLeg = new THREE.Mesh(lowerLegGeo, this.materials.skin);
-        leftLowerLeg.position.set(-0.08 * scale.width, 0.2 * scale.height, 0);
-        leftLowerLeg.castShadow = true;
-        this.group.add(leftLowerLeg);
-        this.bones.leftLowerLeg = leftLowerLeg;
-
-        const rightLowerLeg = new THREE.Mesh(lowerLegGeo, this.materials.skin);
-        rightLowerLeg.position.set(0.08 * scale.width, 0.2 * scale.height, 0);
-        rightLowerLeg.castShadow = true;
-        this.bones.rightLowerLeg = rightLowerLeg;
-
-        // Feet/shoes
-        const footGeo = new THREE.BoxGeometry(0.08 * scale.width, 0.06, 0.18);
-
-        const leftFoot = new THREE.Mesh(footGeo, this.materials.shoes);
-        leftFoot.position.set(-0.08 * scale.width, 0.03, 0.04);
-        leftFoot.castShadow = true;
-        this.group.add(leftFoot);
-        this.bones.leftFoot = leftFoot;
-
-        const rightFoot = new THREE.Mesh(footGeo, this.materials.shoes);
-        rightFoot.position.set(0.08 * scale.width, 0.03, 0.04);
-        rightFoot.castShadow = true;
-        this.group.add(rightFoot);
-        this.bones.rightFoot = rightFoot;
-
-        // Arms
-        const upperArmGeo = new THREE.CylinderGeometry(0.04 * scale.width, 0.035 * scale.width, 0.3, 8);
-
-        const leftUpperArm = new THREE.Mesh(upperArmGeo, this.materials.outfit);
-        leftUpperArm.position.set(-0.22 * scale.width, 1.05 * scale.height, 0);
-        leftUpperArm.rotation.z = 0.15;
+        // --- LEFT ARM ---
+        const leftUpperArmGeo = new THREE.CylinderGeometry(0.04 * scale.width, 0.035 * scale.width, 0.3, 8);
+        this._trackedGeometries.add(leftUpperArmGeo);
+        const leftUpperArm = new THREE.Mesh(leftUpperArmGeo, this.materials.outfit);
         leftUpperArm.castShadow = true;
-        this.group.add(leftUpperArm);
+        this.bones.leftShoulderPivot.add(leftUpperArm);
         this.bones.leftUpperArm = leftUpperArm;
 
-        const rightUpperArm = new THREE.Mesh(upperArmGeo, this.materials.outfit);
-        rightUpperArm.position.set(0.22 * scale.width, 1.05 * scale.height, 0);
-        rightUpperArm.rotation.z = -0.15;
-        rightUpperArm.castShadow = true;
-        this.group.add(rightUpperArm);
-        this.bones.rightUpperArm = rightUpperArm;
+        const leftElbowPivot = new THREE.Group();
+        leftElbowPivot.name = 'leftElbowPivot';
+        leftElbowPivot.position.set(-0.02 * scale.width, -0.2 * scale.height, 0);
+        this.bones.leftShoulderPivot.add(leftElbowPivot);
+        this.bones.leftElbowPivot = leftElbowPivot;
 
-        const forearmGeo = new THREE.CylinderGeometry(0.035 * scale.width, 0.03 * scale.width, 0.28, 8);
-
-        const leftForearm = new THREE.Mesh(forearmGeo, this.materials.skin);
-        leftForearm.position.set(-0.24 * scale.width, 0.85 * scale.height, 0);
-        leftForearm.rotation.z = 0.1;
+        const leftForearmGeo = new THREE.CylinderGeometry(0.035 * scale.width, 0.03 * scale.width, 0.28, 8);
+        this._trackedGeometries.add(leftForearmGeo);
+        const leftForearm = new THREE.Mesh(leftForearmGeo, this.materials.skin);
         leftForearm.castShadow = true;
-        this.group.add(leftForearm);
+        leftElbowPivot.add(leftForearm);
         this.bones.leftForearm = leftForearm;
 
-        const rightForearm = new THREE.Mesh(forearmGeo, this.materials.skin);
-        rightForearm.position.set(0.24 * scale.width, 0.85 * scale.height, 0);
-        rightForearm.rotation.z = -0.1;
-        rightForearm.castShadow = true;
-        this.group.add(rightForearm);
-        this.bones.rightForearm = rightForearm;
+        const leftHandPivot = new THREE.Group();
+        leftHandPivot.name = 'leftHandPivot';
+        leftHandPivot.position.set(-0.01 * scale.width, -0.15 * scale.height, 0);
+        leftElbowPivot.add(leftHandPivot);
+        this.bones.leftHandPivot = leftHandPivot;
 
-        // Hands
-        const handGeo = new THREE.SphereGeometry(0.035 * scale.width, 8, 6);
-
-        const leftHand = new THREE.Mesh(handGeo, this.materials.skin);
-        leftHand.position.set(-0.25 * scale.width, 0.7 * scale.height, 0);
+        const leftHandGeo = new THREE.SphereGeometry(0.035 * scale.width, 8, 6);
+        this._trackedGeometries.add(leftHandGeo);
+        const leftHand = new THREE.Mesh(leftHandGeo, this.materials.skin);
         leftHand.castShadow = true;
-        this.group.add(leftHand);
+        leftHandPivot.add(leftHand);
         this.bones.leftHand = leftHand;
 
-        const rightHand = new THREE.Mesh(handGeo, this.materials.skin);
-        rightHand.position.set(0.25 * scale.width, 0.7 * scale.height, 0);
+        // --- RIGHT ARM ---
+        const rightUpperArmGeo = new THREE.CylinderGeometry(0.04 * scale.width, 0.035 * scale.width, 0.3, 8);
+        this._trackedGeometries.add(rightUpperArmGeo);
+        const rightUpperArm = new THREE.Mesh(rightUpperArmGeo, this.materials.outfit);
+        rightUpperArm.castShadow = true;
+        this.bones.rightShoulderPivot.add(rightUpperArm);
+        this.bones.rightUpperArm = rightUpperArm;
+
+        const rightElbowPivot = new THREE.Group();
+        rightElbowPivot.name = 'rightElbowPivot';
+        rightElbowPivot.position.set(0.02 * scale.width, -0.2 * scale.height, 0);
+        this.bones.rightShoulderPivot.add(rightElbowPivot);
+        this.bones.rightElbowPivot = rightElbowPivot;
+
+        const rightForearmGeo = new THREE.CylinderGeometry(0.035 * scale.width, 0.03 * scale.width, 0.28, 8);
+        this._trackedGeometries.add(rightForearmGeo);
+        const rightForearm = new THREE.Mesh(rightForearmGeo, this.materials.skin);
+        rightForearm.castShadow = true;
+        rightElbowPivot.add(rightForearm);
+        this.bones.rightForearm = rightForearm;
+
+        const rightHandPivot = new THREE.Group();
+        rightHandPivot.name = 'rightHandPivot';
+        rightHandPivot.position.set(0.01 * scale.width, -0.15 * scale.height, 0);
+        rightElbowPivot.add(rightHandPivot);
+        this.bones.rightHandPivot = rightHandPivot;
+
+        const rightHandGeo = new THREE.SphereGeometry(0.035 * scale.width, 8, 6);
+        this._trackedGeometries.add(rightHandGeo);
+        const rightHand = new THREE.Mesh(rightHandGeo, this.materials.skin);
         rightHand.castShadow = true;
-        this.group.add(rightHand);
+        rightHandPivot.add(rightHand);
         this.bones.rightHand = rightHand;
+
+        // --- LEFT LEG ---
+        const leftUpperLegGeo = new THREE.CylinderGeometry(0.07 * scale.width, 0.06 * scale.width, 0.4 * scale.height, 8);
+        this._trackedGeometries.add(leftUpperLegGeo);
+        const leftUpperLeg = new THREE.Mesh(leftUpperLegGeo, this.materials.outfit);
+        leftUpperLeg.castShadow = true;
+        this.bones.leftHipPivot.add(leftUpperLeg);
+        this.bones.leftUpperLeg = leftUpperLeg;
+
+        const leftKneePivot = new THREE.Group();
+        leftKneePivot.name = 'leftKneePivot';
+        leftKneePivot.position.set(0, -0.3 * scale.height, 0);
+        this.bones.leftHipPivot.add(leftKneePivot);
+        this.bones.leftKneePivot = leftKneePivot;
+
+        const leftLowerLegGeo = new THREE.CylinderGeometry(0.055 * scale.width, 0.045 * scale.width, 0.4 * scale.height, 8);
+        this._trackedGeometries.add(leftLowerLegGeo);
+        const leftLowerLeg = new THREE.Mesh(leftLowerLegGeo, this.materials.skin);
+        leftLowerLeg.castShadow = true;
+        leftKneePivot.add(leftLowerLeg);
+        this.bones.leftLowerLeg = leftLowerLeg;
+
+        const leftAnklePivot = new THREE.Group();
+        leftAnklePivot.name = 'leftAnklePivot';
+        leftAnklePivot.position.set(0, -0.17 * scale.height, 0);
+        leftKneePivot.add(leftAnklePivot);
+        this.bones.leftAnklePivot = leftAnklePivot;
+
+        const leftFootGeo = new THREE.BoxGeometry(0.08 * scale.width, 0.06, 0.18);
+        this._trackedGeometries.add(leftFootGeo);
+        const leftFoot = new THREE.Mesh(leftFootGeo, this.materials.shoes);
+        leftFoot.castShadow = true;
+        leftAnklePivot.add(leftFoot);
+        this.bones.leftFoot = leftFoot;
+
+        // --- RIGHT LEG ---
+        const rightUpperLegGeo = new THREE.CylinderGeometry(0.07 * scale.width, 0.06 * scale.width, 0.4 * scale.height, 8);
+        this._trackedGeometries.add(rightUpperLegGeo);
+        const rightUpperLeg = new THREE.Mesh(rightUpperLegGeo, this.materials.outfit);
+        rightUpperLeg.castShadow = true;
+        this.bones.rightHipPivot.add(rightUpperLeg);
+        this.bones.rightUpperLeg = rightUpperLeg;
+
+        const rightKneePivot = new THREE.Group();
+        rightKneePivot.name = 'rightKneePivot';
+        rightKneePivot.position.set(0, -0.3 * scale.height, 0);
+        this.bones.rightHipPivot.add(rightKneePivot);
+        this.bones.rightKneePivot = rightKneePivot;
+
+        const rightLowerLegGeo = new THREE.CylinderGeometry(0.055 * scale.width, 0.045 * scale.width, 0.4 * scale.height, 8);
+        this._trackedGeometries.add(rightLowerLegGeo);
+        const rightLowerLeg = new THREE.Mesh(rightLowerLegGeo, this.materials.skin);
+        rightLowerLeg.castShadow = true;
+        rightKneePivot.add(rightLowerLeg);
+        this.bones.rightLowerLeg = rightLowerLeg;
+
+        const rightAnklePivot = new THREE.Group();
+        rightAnklePivot.name = 'rightAnklePivot';
+        rightAnklePivot.position.set(0, -0.17 * scale.height, 0);
+        rightKneePivot.add(rightAnklePivot);
+        this.bones.rightAnklePivot = rightAnklePivot;
+
+        const rightFootGeo = new THREE.BoxGeometry(0.08 * scale.width, 0.06, 0.18);
+        this._trackedGeometries.add(rightFootGeo);
+        const rightFoot = new THREE.Mesh(rightFootGeo, this.materials.shoes);
+        rightFoot.castShadow = true;
+        rightAnklePivot.add(rightFoot);
+        this.bones.rightFoot = rightFoot;
     }
 
     _bodyScale() {
@@ -252,6 +347,19 @@ export class ProceduralHuman {
         const parent = parentBone ? this.bones[parentBone] : this.group;
         if (parent) {
             parent.add(mesh);
+            this._accessoryMeshes.push(mesh);
+            mesh.traverse((child) => {
+                if (child.isMesh) {
+                    if (child.geometry) this._trackedGeometries.add(child.geometry);
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach((m) => this._trackedMaterials.add(m));
+                        } else {
+                            this._trackedMaterials.add(child.material);
+                        }
+                    }
+                }
+            });
         }
     }
 
@@ -268,7 +376,7 @@ export class ProceduralHuman {
     }
 
     animate(state, time, options = {}) {
-        const { isMoving = false, speed = 0, isAlive = true, hpRatio = 1 } = options;
+        const { isMoving = false, speed = 0, isAlive = true, hpRatio = 1, abilityVariant = null, hitIntensity = 1 } = options;
 
         this._resetPose();
 
@@ -283,10 +391,10 @@ export class ProceduralHuman {
                 this._animateConfront(time);
                 break;
             case 'hit':
-                this._animateHit(time);
+                this._animateHit(time, hitIntensity);
                 break;
             case 'ability':
-                this._animateAbility(time);
+                this._animateAbility(time, abilityVariant);
                 break;
             case 'defeat':
                 this._animateDefeat(time);
@@ -299,129 +407,231 @@ export class ProceduralHuman {
     }
 
     _resetPose() {
-        const bones = this.bones;
-        if (bones.headGroup) {
-            bones.headGroup.rotation.set(0, 0, 0);
-            bones.headGroup.position.y = 1.45;
-        }
-        if (bones.head) bones.head.rotation.set(0, 0, 0);
-        if (bones.leftUpperArm) bones.leftUpperArm.rotation.set(0, 0, 0.15);
-        if (bones.rightUpperArm) bones.rightUpperArm.rotation.set(0, 0, -0.15);
-        if (bones.leftForearm) bones.leftForearm.rotation.set(0, 0, 0.1);
-        if (bones.rightForearm) bones.rightForearm.rotation.set(0, 0, -0.1);
-        if (bones.leftUpperLeg) bones.leftUpperLeg.rotation.set(0, 0, 0);
-        if (bones.rightUpperLeg) bones.rightUpperLeg.rotation.set(0, 0, 0);
-        if (bones.torso) bones.torso.rotation.set(0, 0, 0);
+        const b = this.bones;
+        if (b.headPivot) b.headPivot.rotation.set(0, 0, 0);
+        if (b.headGroup) b.headGroup.rotation.set(0, 0, 0);
+        if (b.torsoPivot) b.torsoPivot.rotation.set(0, 0, 0);
+        if (b.leftShoulderPivot) b.leftShoulderPivot.rotation.set(0, 0, 0);
+        if (b.rightShoulderPivot) b.rightShoulderPivot.rotation.set(0, 0, 0);
+        if (b.leftElbowPivot) b.leftElbowPivot.rotation.set(0, 0, 0);
+        if (b.rightElbowPivot) b.rightElbowPivot.rotation.set(0, 0, 0);
+        if (b.leftHipPivot) b.leftHipPivot.rotation.set(0, 0, 0);
+        if (b.rightHipPivot) b.rightHipPivot.rotation.set(0, 0, 0);
+        if (b.leftKneePivot) b.leftKneePivot.rotation.set(0, 0, 0);
+        if (b.rightKneePivot) b.rightKneePivot.rotation.set(0, 0, 0);
+        if (b.bodyRoot) b.bodyRoot.rotation.set(0, 0, 0);
     }
 
     _animateIdle(time) {
         const bob = Math.sin(time * 1.5) * 0.005;
         const sway = Math.sin(time * 0.8) * 0.01;
+        const b = this.bones;
 
-        if (this.bones.headGroup) {
-            this.bones.headGroup.position.y = 1.45 + bob;
-            this.bones.headGroup.rotation.y = sway;
+        if (b.headPivot) {
+            b.headPivot.position.y = 0.5 * this._bodyScale().height + bob;
+            b.headPivot.rotation.y = sway;
         }
-        if (this.bones.torso) {
-            this.bones.torso.rotation.z = sway * 0.5;
+        if (b.torsoPivot) {
+            b.torsoPivot.rotation.z = sway * 0.5;
         }
     }
 
     _animateWalk(time, speed) {
         const stride = Math.min(speed * 2, 3) * 0.15;
-
         const legSwing = Math.sin(time * 5) * stride;
         const armSwing = Math.sin(time * 5 + Math.PI) * stride * 0.7;
+        const b = this.bones;
 
-        if (this.bones.leftUpperLeg) this.bones.leftUpperLeg.rotation.x = legSwing;
-        if (this.bones.rightUpperLeg) this.bones.rightUpperLeg.rotation.x = -legSwing;
-        if (this.bones.leftUpperArm) this.bones.leftUpperArm.rotation.x = armSwing;
-        if (this.bones.rightUpperArm) this.bones.rightUpperArm.rotation.x = -armSwing;
+        if (b.leftHipPivot) b.leftHipPivot.rotation.x = legSwing;
+        if (b.rightHipPivot) b.rightHipPivot.rotation.x = -legSwing;
+        if (b.leftShoulderPivot) b.leftShoulderPivot.rotation.x = armSwing;
+        if (b.rightShoulderPivot) b.rightShoulderPivot.rotation.x = -armSwing;
 
         const bob = Math.abs(Math.sin(time * 5)) * 0.01;
-        if (this.bones.headGroup) this.bones.headGroup.position.y = 1.45 + bob;
+        if (b.bodyRoot) b.bodyRoot.position.y = 0.7 * this._bodyScale().height + bob;
     }
 
     _animateConfront(time) {
         const tension = Math.sin(time * 3) * 0.02;
+        const b = this.bones;
 
-        if (this.bones.headGroup) {
-            this.bones.headGroup.rotation.x = -0.1 + tension;
-            this.bones.headGroup.position.y = 1.45 + Math.abs(tension);
+        if (b.headPivot) {
+            b.headPivot.rotation.x = -0.1 + tension;
         }
-
-        if (this.bones.leftUpperArm) {
-            this.bones.leftUpperArm.rotation.z = 0.15 + 0.1;
-            this.bones.leftUpperArm.rotation.x = -0.2;
+        if (b.leftShoulderPivot) {
+            b.leftShoulderPivot.rotation.z = 0.1;
+            b.leftShoulderPivot.rotation.x = -0.2;
         }
-        if (this.bones.rightUpperArm) {
-            this.bones.rightUpperArm.rotation.z = -0.15 - 0.1;
-            this.bones.rightUpperArm.rotation.x = -0.3 + Math.sin(time * 4) * 0.1;
+        if (b.rightShoulderPivot) {
+            b.rightShoulderPivot.rotation.z = -0.1;
+            b.rightShoulderPivot.rotation.x = -0.3 + Math.sin(time * 4) * 0.1;
         }
-        if (this.bones.torso) {
-            this.bones.torso.rotation.x = -0.05;
+        if (b.torsoPivot) {
+            b.torsoPivot.rotation.x = -0.05;
         }
     }
 
-    _animateHit(time) {
-        const recoil = Math.sin(time * 8) * 0.15 * Math.exp(-time * 3);
+    _animateHit(time, intensity = 1) {
+        const recoil = Math.sin(time * 8) * 0.15 * intensity * Math.exp(-time * 3);
+        const b = this.bones;
 
-        if (this.bones.headGroup) {
-            this.bones.headGroup.rotation.x = recoil;
-            this.bones.headGroup.rotation.z = recoil * 0.5;
+        if (b.headPivot) {
+            b.headPivot.rotation.x = recoil;
+            b.headPivot.rotation.z = recoil * 0.5;
         }
-        if (this.bones.torso) {
-            this.bones.torso.rotation.x = recoil * 0.3;
+        if (b.torsoPivot) {
+            b.torsoPivot.rotation.x = recoil * 0.3;
+        }
+        if (b.leftShoulderPivot) {
+            b.leftShoulderPivot.rotation.z = 0.15 + recoil * 0.5;
+        }
+        if (b.rightShoulderPivot) {
+            b.rightShoulderPivot.rotation.z = -0.15 - recoil * 0.5;
         }
     }
 
-    _animateAbility(time) {
+    _animateAbility(time, variant = null) {
+        const b = this.bones;
+
+        switch (variant) {
+            case 'callManager':
+                this._poseCallManager(time);
+                break;
+            case 'violationNotice':
+                this._poseViolationNotice(time);
+                break;
+            case 'returnWithoutReceipt':
+                this._poseReturnWithoutReceipt(time);
+                break;
+            default:
+                this._poseGenericAbility(time);
+                break;
+        }
+    }
+
+    _poseCallManager(time) {
         const windup = Math.sin(time * 2) * 0.1;
+        const b = this.bones;
 
-        if (this.bones.rightUpperArm) {
-            this.bones.rightUpperArm.rotation.x = -0.5 + windup;
-            this.bones.rightUpperArm.rotation.z = -0.15 - 0.2;
+        // Right hand raises phone to ear
+        if (b.rightShoulderPivot) {
+            b.rightShoulderPivot.rotation.x = -1.2 + windup;
+            b.rightShoulderPivot.rotation.z = -0.3;
         }
-        if (this.bones.headGroup) {
-            this.bones.headGroup.rotation.x = -0.15;
+        if (b.rightElbowPivot) {
+            b.rightElbowPivot.rotation.x = -0.8 + windup * 0.5;
+        }
+        // Head angles toward phone
+        if (b.headPivot) {
+            b.headPivot.rotation.x = -0.2;
+            b.headPivot.rotation.z = 0.15;
+        }
+        // Left hand gestures outward
+        if (b.leftShoulderPivot) {
+            b.leftShoulderPivot.rotation.x = -0.3;
+            b.leftShoulderPivot.rotation.z = 0.25;
+        }
+    }
+
+    _poseViolationNotice(time) {
+        const b = this.bones;
+        const point = Math.sin(time * 2) * 0.15;
+
+        // Left hand raises clipboard
+        if (b.leftShoulderPivot) {
+            b.leftShoulderPivot.rotation.x = -0.6;
+            b.leftShoulderPivot.rotation.z = 0.15;
+        }
+        if (b.leftElbowPivot) {
+            b.leftElbowPivot.rotation.x = -0.5;
+        }
+        // Head looks down at clipboard
+        if (b.headPivot) {
+            b.headPivot.rotation.x = -0.25;
+            b.headPivot.rotation.z = -0.1;
+        }
+        // Right arm points toward target
+        if (b.rightShoulderPivot) {
+            b.rightShoulderPivot.rotation.x = -0.5 + point;
+            b.rightShoulderPivot.rotation.z = -0.25;
+        }
+    }
+
+    _poseReturnWithoutReceipt(time) {
+        const b = this.bones;
+        const lift = Math.sin(time * 2) * 0.1;
+
+        // Product/shopping bag lifts
+        if (b.rightShoulderPivot) {
+            b.rightShoulderPivot.rotation.x = -0.5 + lift;
+            b.rightShoulderPivot.rotation.z = -0.15;
+        }
+        if (b.leftShoulderPivot) {
+            b.leftShoulderPivot.rotation.x = -0.3 + lift * 0.5;
+        }
+        // Torso leans forward
+        if (b.torsoPivot) {
+            b.torsoPivot.rotation.x = -0.1;
+        }
+    }
+
+    _poseGenericAbility(time) {
+        const windup = Math.sin(time * 2) * 0.1;
+        const b = this.bones;
+
+        if (b.rightShoulderPivot) {
+            b.rightShoulderPivot.rotation.x = -0.5 + windup;
+            b.rightShoulderPivot.rotation.z = -0.35;
+        }
+        if (b.headPivot) {
+            b.headPivot.rotation.x = -0.15;
         }
     }
 
     _animateDefeat(time) {
         const slump = Math.min(time * 0.5, 1);
+        const b = this.bones;
 
-        if (this.bones.torso) {
-            this.bones.torso.rotation.x = slump * 0.4;
+        if (b.torsoPivot) {
+            b.torsoPivot.rotation.x = slump * 0.4;
         }
-        if (this.bones.headGroup) {
-            this.bones.headGroup.rotation.x = slump * 0.6;
-            this.bones.headGroup.position.y = 1.45 - slump * 0.3;
+        if (b.headPivot) {
+            b.headPivot.rotation.x = slump * 0.6;
         }
-        if (this.bones.leftUpperArm) this.bones.leftUpperArm.rotation.z = 0.15 + slump * 0.5;
-        if (this.bones.rightUpperArm) this.bones.rightUpperArm.rotation.z = -0.15 - slump * 0.5;
+        if (b.leftShoulderPivot) b.leftShoulderPivot.rotation.z = slump * 0.5;
+        if (b.rightShoulderPivot) b.rightShoulderPivot.rotation.z = -slump * 0.5;
     }
 
     _animateDefeated(time) {
-        if (this.bones.torso) {
-            this.bones.torso.rotation.x = 0.8;
+        const b = this.bones;
+
+        if (b.torsoPivot) {
+            b.torsoPivot.rotation.x = 0.8;
         }
-        if (this.bones.headGroup) {
-            this.bones.headGroup.rotation.x = 1.2;
-            this.bones.headGroup.position.y = 1.15;
+        if (b.headPivot) {
+            b.headPivot.rotation.x = 1.2;
         }
-        if (this.bones.leftUpperArm) {
-            this.bones.leftUpperArm.rotation.z = 0.6;
-            this.bones.leftUpperArm.rotation.x = 0.3;
+        if (b.leftShoulderPivot) {
+            b.leftShoulderPivot.rotation.z = 0.6;
+            b.leftShoulderPivot.rotation.x = 0.3;
         }
-        if (this.bones.rightUpperArm) {
-            this.bones.rightUpperArm.rotation.z = -0.6;
-            this.bones.rightUpperArm.rotation.x = 0.3;
+        if (b.rightShoulderPivot) {
+            b.rightShoulderPivot.rotation.z = -0.6;
+            b.rightShoulderPivot.rotation.x = 0.3;
         }
     }
 
     dispose() {
-        for (const mat of Object.values(this.materials)) {
+        for (const geo of this._trackedGeometries) {
+            geo.dispose();
+        }
+        this._trackedGeometries.clear();
+
+        for (const mat of this._trackedMaterials) {
             mat.dispose();
         }
+        this._trackedMaterials.clear();
+
+        this._accessoryMeshes = [];
     }
 }

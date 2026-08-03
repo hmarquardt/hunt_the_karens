@@ -10,7 +10,7 @@ import { buildKarenBob, buildKarenPlatinumBob, buildKarenBrunetteBob, buildKaren
 
 export class Karen extends NPC {
     constructor(config) {
-        const merged = { ...KAREN_BASE, ...config };
+        const merged = { ...KAREN_BASE, ...config, buildDefaultMesh: false };
         super(merged);
 
         this.karenType = config.karenType || 'unknown';
@@ -219,13 +219,37 @@ export class Karen extends NPC {
 
         const isMoving = this.stateMachine.is(KarenState.PATROL) || this.stateMachine.is(KarenState.CONFRONT);
         const speed = isMoving ? this.getEffectiveSpeed() : 0;
-
-        this.proceduralHuman.animate(this.proceduralAnimationState, this.proceduralAnimTimer, {
+        const options = {
             isMoving,
             speed,
             isAlive: this.isAlive,
-            hpRatio: this.currentHp / this.maxHp,
-        });
+            hpRatio: this.maxHealth > 0 ? this.health / this.maxHealth : 0,
+            abilityVariant: this._getAbilityVariant(),
+            hitIntensity: this._getHitIntensity(),
+        };
+
+        this.proceduralHuman.animate(this.proceduralAnimationState, this.proceduralAnimTimer, options);
+    }
+
+    _getAbilityVariant() {
+        for (const ability of this.abilities) {
+            if (ability.state === 'telegraphing' || ability.state === 'executing') {
+                const id = ability.id || '';
+                return id.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+            }
+        }
+        return null;
+    }
+
+    _getHitIntensity() {
+        if (this._lastHitSource) {
+            switch (this._lastHitSource) {
+                case 'croc': return 1.0;
+                case 'waterBalloon': return 0.5;
+                case 'gardenGnome': return 1.5;
+            }
+        }
+        return 1.0;
     }
 
     setPlayerRef(playerRef) {
@@ -243,6 +267,8 @@ export class Karen extends NPC {
         if (!this.isAlive) {
             if (this.stateMachine.is(KarenState.RESPAWNING)) return 0;
         }
+
+        this._lastHitSource = source?.weaponType || source?.type || null;
 
         const remaining = super.takeDamage(amount, source);
 
@@ -549,8 +575,14 @@ export class Karen extends NPC {
         this.dialogueTimer = 0;
         this.angleChangeTimer = 0;
         this.abilityTryCooldown = 0;
+        this._lastHitSource = null;
+        this.proceduralAnimationState = 'idle';
+        this.proceduralAnimTimer = 0;
         if (this.mesh) {
             this.mesh.visible = true;
+        }
+        if (this.proceduralHuman) {
+            this.proceduralHuman.animate('idle', 0);
         }
         this.resetAbilities();
     }
