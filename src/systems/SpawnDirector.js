@@ -147,13 +147,20 @@ export class SpawnDirector {
         enemy.health = enemy.maxHealth;
         enemy.isAlive = true;
         enemy.isStunned = false;
-        enemy.stateMachine?.transitionTo('patrol');
+
+        if (enemy.resetForRespawn) {
+            enemy.resetForRespawn();
+        } else {
+            enemy.stateMachine?.transitionTo('patrol');
+            if (enemy.mesh) {
+                enemy.mesh.visible = true;
+            }
+        }
 
         enemy.position.copy(def.position);
         enemy.patrolCenter.copy(def.patrolCenter);
 
         if (enemy.mesh) {
-            enemy.mesh.visible = true;
             enemy.mesh.position.copy(enemy.position);
         }
 

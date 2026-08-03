@@ -1,5 +1,5 @@
+import * as THREE from 'three';
 import { KarenAbility } from './KarenAbility.js';
-import { WorldEffect } from '../../systems/WorldEffectSystem.js';
 
 export class CallManagerAbility extends KarenAbility {
     constructor(config) {
@@ -9,28 +9,44 @@ export class CallManagerAbility extends KarenAbility {
             cooldown: config?.cooldown || 25000,
             telegraphDuration: config?.telegraphDuration || 2000,
             executeDuration: config?.executeDuration || 1500,
-            speedBoost: config?.speedBoost || 1.4,
-            speedDuration: config?.speedDuration || 6000,
-            aggroRadius: config?.aggroRadius || 8,
         });
-
-        this.speedBoost = config?.speedBoost || 1.4;
-        this.speedDuration = config?.speedDuration || 6000;
-        this.aggroRadius = config?.aggroRadius || 8;
     }
 
-    _onTelegraph() {
+    use(karen, playerStatusController) {
+        if (!this.canUse()) return false;
+        this.karen = karen;
+        this.playerStatusController = playerStatusController;
+
+        this.state = 'telegraphing';
+        this.stateTimer = this.telegraphDuration;
+        this.remainingCooldown = this.cooldown;
+
         if (this.onTelegraph) this.onTelegraph(this);
+        return true;
     }
 
     _onExecute() {
         if (this.onExecute) this.onExecute(this);
+
+        if (this.playerStatusController) {
+            this.playerStatusController.add({
+                id: 'escalated',
+                name: 'ESCALATED',
+                duration: 4,
+                modifiers: {
+                    speedMultiplier: 0.75,
+                },
+            });
+        }
+
         if (this.karen) {
             this.karen.statusEffects.add({
-                id: 'speed_boost',
-                name: 'MANAGER_BOOST',
-                duration: this.speedDuration,
-                speedMultiplier: this.speedBoost,
+                id: 'manager_zeal',
+                name: 'MANAGER_ZEAL',
+                duration: 6,
+                modifiers: {
+                    speedMultiplier: 1.2,
+                },
             });
         }
     }
@@ -48,13 +64,9 @@ export class ViolationNoticeAbility extends KarenAbility {
             cooldown: config?.cooldown || 20000,
             telegraphDuration: config?.telegraphDuration || 2000,
             executeDuration: config?.executeDuration || 1000,
-            noticeDuration: config?.noticeDuration || 12000,
-            slowFactor: config?.slowFactor || 0.5,
-            placeDistance: config?.placeDistance || 6,
         });
 
-        this.noticeDuration = config?.noticeDuration || 12000;
-        this.slowFactor = config?.slowFactor || 0.5;
+        this.noticeDuration = config?.noticeDuration || 12;
         this.placeDistance = config?.placeDistance || 6;
     }
 
@@ -83,11 +95,11 @@ export class ViolationNoticeAbility extends KarenAbility {
         this.worldEffectSystem.add({
             id: `violation_${performance.now()}`,
             position: placePos,
-            duration: this.noticeDuration / 1000,
-            radius: this.aggroRadius || 3,
+            duration: this.noticeDuration,
+            radius: 3,
             type: 'notice',
-            statusEffect: 'slowed',
-            statusDuration: 3000,
+            statusEffect: 'cited',
+            statusDuration: 5,
             label: 'HOA VIOLATION',
         });
     }
@@ -105,14 +117,10 @@ export class ReturnWithoutReceiptAbility extends KarenAbility {
             cooldown: config?.cooldown || 30000,
             telegraphDuration: config?.telegraphDuration || 2500,
             executeDuration: config?.executeDuration || 2000,
-            itemDuration: config?.itemDuration || 15000,
-            radius: config?.radius || 4,
-            refundAmount: config?.refundAmount || 50,
         });
 
-        this.itemDuration = config?.itemDuration || 15000;
+        this.itemDuration = config?.itemDuration || 15;
         this.radius = config?.radius || 4;
-        this.refundAmount = config?.refundAmount || 50;
     }
 
     use(karen, worldEffectSystem) {
@@ -138,11 +146,11 @@ export class ReturnWithoutReceiptAbility extends KarenAbility {
         this.worldEffectSystem.add({
             id: `returned_item_${performance.now()}`,
             position: placePos,
-            duration: this.itemDuration / 1000,
+            duration: this.itemDuration,
             radius: this.radius,
             type: 'rejected_item',
-            statusEffect: 'confused',
-            statusDuration: 4000,
+            statusEffect: 'returned',
+            statusDuration: 3,
             label: 'RETURNED ITEM',
         });
     }

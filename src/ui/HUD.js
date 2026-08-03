@@ -50,7 +50,10 @@ export class HUD {
 
     updateWeapon(name, ammo) {
         if (this.weaponName) this.weaponName.textContent = name;
-        if (this.ammoValue) this.ammoValue.textContent = ammo === Infinity ? '∞' : ammo.toString();
+        if (this.ammoValue) {
+            const display = ammo === Infinity ? '∞' : Math.max(0, Math.floor(ammo)).toString();
+            this.ammoValue.textContent = display;
+        }
     }
 
     updateWeaponSlots(activeIndex) {
@@ -73,7 +76,7 @@ export class HUD {
         for (const effect of effects) {
             const el = document.createElement('div');
             el.className = `status-effect ${effect.id || ''}`;
-            const remaining = Math.ceil(effect.remaining / 1000);
+            const remaining = Math.ceil(effect.remaining);
             el.textContent = `${effect.name} ${remaining}s`;
             this.statusEffectsContainer.appendChild(el);
         }

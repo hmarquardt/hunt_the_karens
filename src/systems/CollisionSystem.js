@@ -64,8 +64,11 @@ export class CollisionSystem {
     }
 
     registerEnemy(enemy) {
-        if (this.debugEnabled && this.enemies.includes(enemy)) {
-            console.warn('[CollisionSystem] Enemy already registered:', enemy.uid);
+        if (this.enemies.includes(enemy)) {
+            if (this.debugEnabled) {
+                console.warn('[CollisionSystem] Enemy already registered:', enemy.uid);
+            }
+            return;
         }
         this.enemies.push(enemy);
     }
@@ -249,7 +252,14 @@ export class CollisionSystem {
                 }
 
                 enemy.takeDamage(proj.damage * 0.5, proj);
+                this._checkDefeatAndRoute(enemy);
             }
+        }
+    }
+
+    _checkDefeatAndRoute(enemy) {
+        if (!enemy.isAlive && this._onEnemyDefeated) {
+            this._onEnemyDefeated(enemy);
         }
     }
 

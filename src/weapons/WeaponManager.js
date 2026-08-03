@@ -6,23 +6,29 @@ export class WeaponManager {
         this.inputManager = inputManager;
         this.weapons = [];
         this.weaponOrder = [];
+        this.views = [];
         this.activeIndex = 0;
         this.activeWeapon = null;
+        this.activeView = null;
     }
 
-    registerWeapon(id, weaponInstance, slotIndex) {
+    registerWeapon(id, weaponInstance, viewInstance, slotIndex) {
         const def = WEAPON_DEFS[id];
         if (!def) {
             console.warn('[WeaponManager] Unknown weapon definition:', id);
             return;
         }
 
-        this.weapons.push({
+        const entry = {
             id,
             instance: weaponInstance,
+            view: viewInstance,
             def,
-            slotIndex: slotIndex || this.weapons.length,
-        });
+            slotIndex: slotIndex !== undefined ? slotIndex : this.weapons.length,
+        };
+
+        this.weapons.push(entry);
+        this.views.push(viewInstance);
 
         this.weapons.sort((a, b) => a.slotIndex - b.slotIndex);
         this.weaponOrder = this.weapons.map(w => w.id);
@@ -38,10 +44,18 @@ export class WeaponManager {
         if (this.activeWeapon) {
             this.activeWeapon.onDeselect?.();
         }
+        if (this.activeView) {
+            this.activeView.hide();
+        }
 
         this.activeIndex = index;
         this.activeWeapon = this.weapons[index].instance;
+        this.activeView = this.weapons[index].view;
+
         this.activeWeapon.onSelect?.();
+        if (this.activeView) {
+            this.activeView.show();
+        }
 
         return true;
     }
@@ -69,17 +83,22 @@ export class WeaponManager {
         if (this.activeWeapon) {
             this.activeWeapon.update(delta);
         }
+        if (this.activeView) {
+            this.activeView.update(delta);
+        }
     }
 
     clear() {
         for (const w of this.weapons) {
-            w.instance.ammo = w.def.ammo ?? w.instance.ammo;
+            w.instance.ammo = w.def.ammo;
+            w.instance.reload();
         }
     }
 
     dispose() {
         for (const w of this.weapons) {
             w.instance.dispose?.();
+            w.view?.dispose();
         }
     }
 }

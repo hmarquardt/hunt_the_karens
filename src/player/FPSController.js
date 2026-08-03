@@ -49,13 +49,15 @@ export class FPSController {
         this.camera.position.copy(this.player.getEyePosition());
         this.euler.set(0, 0, 0);
         this.camera.quaternion.setFromEuler(this.euler);
+        this.statusEffects.clear();
+        this.speedMultiplier = 1;
     }
 
     update(delta) {
         if (!this._isLocked) return;
 
-        this.statusEffects.update(delta * 1000);
-        this.speedMultiplier = this.statusEffects.getModifier('speedMultiplier');
+        this.statusEffects.update(delta);
+        this.speedMultiplier = this.statusEffects.getModifierValue('speedMultiplier', 1);
 
         this._handleRotation();
         this._handleMovement(delta);

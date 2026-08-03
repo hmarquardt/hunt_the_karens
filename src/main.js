@@ -26,20 +26,16 @@ const KAREN_REGISTRY = {
             abilities: {
                 callManager: {
                     cooldown: 25000,
-                    speedBoost: 1.4,
-                    speedDuration: 6000,
                 },
                 violationNotice: {
                     cooldown: 20000,
-                    noticeDuration: 12000,
-                    slowFactor: 0.5,
+                    noticeDuration: 12,
                     placeDistance: 6,
                 },
                 returnWithoutReceipt: {
                     cooldown: 30000,
-                    itemDuration: 15000,
+                    itemDuration: 15,
                     radius: 4,
-                    refundAmount: 50,
                 },
             },
         };

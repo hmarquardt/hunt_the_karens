@@ -45,12 +45,16 @@ export class Karen extends NPC {
             targetDistance: config.confrontationDistance || 4,
             confrontationTimer: 0,
             specialAbilityCooldown: 0,
-            specialAbilityInterval: config.specialAbilityInterval || 8000,
+            specialAbilityInterval: (config.specialAbilityInterval || 8000) / 1000,
         };
 
         this.onImpact = null;
         this.onRespawn = null;
         this._spawnDefinition = null;
+
+        this.reactionRemaining = 0;
+        this.defeatVisibilityRemaining = 0;
+        this.specialRemaining = 0;
 
         if (config.playerRef) {
             this._playerRef = config.playerRef;
@@ -65,7 +69,7 @@ export class Karen extends NPC {
     }
 
     getEffectiveSpeed() {
-        const speedMult = this.statusEffects.getModifier('speedMultiplier');
+        const speedMult = this.statusEffects.getModifierValue('speedMultiplier', 1);
         return this.speed * speedMult;
     }
 
@@ -272,12 +276,7 @@ export class Karen extends NPC {
 
         if (this.isAlive) {
             this.stateMachine.transitionTo(KarenState.REACT);
-
-            setTimeout(() => {
-                if (this.isAlive && this.stateMachine.is(KarenState.REACT)) {
-                    this.stateMachine.transitionTo(KarenState.ALERT);
-                }
-            }, 800);
+            this.reactionRemaining = 0.8;
         }
 
         return remaining;
@@ -286,33 +285,42 @@ export class Karen extends NPC {
     onDefeated(source) {
         super.onDefeated(source);
         this.stateMachine.transitionTo(KarenState.DEFEATED);
-
-        if (this.mesh) {
-            setTimeout(() => {
-                if (this.mesh) {
-                    this.mesh.visible = false;
-                }
-            }, this.ragdollDuration * 0.7);
-        }
+        this.defeatVisibilityRemaining = this.ragdollDuration * 0.001 * 0.7;
     }
 
     onSpecialAbility() {
         this.stateMachine.transitionTo(KarenState.SPECIAL);
+        this.specialRemaining = 2;
+    }
 
-        setTimeout(() => {
-            if (this.stateMachine.is(KarenState.SPECIAL)) {
+    update(delta) {
+        this.stateMachine.update(delta);
+        this.statusEffects.update(delta);
+
+        if (this.reactionRemaining > 0) {
+            this.reactionRemaining -= delta;
+            if (this.reactionRemaining <= 0 && this.isAlive && this.stateMachine.is(KarenState.REACT)) {
+                this.stateMachine.transitionTo(KarenState.ALERT);
+            }
+        }
+
+        if (this.defeatVisibilityRemaining > 0) {
+            this.defeatVisibilityRemaining -= delta;
+            if (this.defeatVisibilityRemaining <= 0 && this.mesh) {
+                this.mesh.visible = false;
+            }
+        }
+
+        if (this.specialRemaining > 0) {
+            this.specialRemaining -= delta;
+            if (this.specialRemaining <= 0 && this.stateMachine.is(KarenState.SPECIAL)) {
                 if (this.perception.playerDetected) {
                     this.stateMachine.transitionTo(KarenState.CONFRONT);
                 } else {
                     this.stateMachine.transitionTo(KarenState.PATROL);
                 }
             }
-        }, 2000);
-    }
-
-    update(delta) {
-        this.stateMachine.update(delta);
-        this.statusEffects.update(delta * 1000);
+        }
 
         if (!this.isAlive) {
             if (this.animController) this.animController.update(delta);
@@ -473,7 +481,7 @@ export class Karen extends NPC {
             this.mesh.position.copy(this.position);
         }
 
-        this.confrontation.specialAbilityCooldown -= delta * 1000;
+        this.confrontation.specialAbilityCooldown -= delta;
         if (this.confrontation.specialAbilityCooldown <= 0) {
             this.confrontation.specialAbilityCooldown = this.confrontation.specialAbilityInterval;
             this.onSpecialAbility();
@@ -502,5 +510,21 @@ export class Karen extends NPC {
             radius: this.colliderRadius,
             height: this.colliderHeight,
         };
+    }
+
+    resetForRespawn() {
+        this.statusEffects.clear();
+        this.reactionRemaining = 0;
+        this.defeatVisibilityRemaining = 0;
+        this.specialRemaining = 0;
+        this.confrontation.specialAbilityCooldown = this.confrontation.specialAbilityInterval;
+        this.dialogueTimer = 0;
+        this.angleChangeTimer = 0;
+        if (this.mesh) {
+            this.mesh.visible = true;
+        }
+        if (this.resetAbilities) {
+            this.resetAbilities();
+        }
     }
 }

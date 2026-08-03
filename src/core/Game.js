@@ -8,6 +8,7 @@ import { CrocLauncher } from '../weapons/CrocLauncher.js';
 import { WaterBalloonLauncher } from '../weapons/WaterBalloonLauncher.js';
 import { GardenGnomeLauncher } from '../weapons/GardenGnomeLauncher.js';
 import { WeaponManager } from '../weapons/WeaponManager.js';
+import { FirstPersonWeaponView } from '../weapons/FirstPersonWeaponView.js';
 import { ProjectileSystem } from '../systems/ProjectileSystem.js';
 import { CollisionSystem } from '../systems/CollisionSystem.js';
 import { ScoreSystem } from '../systems/ScoreSystem.js';
@@ -66,34 +67,7 @@ export class Game {
         );
         this.playerController.init();
 
-        this.weapon = new CrocLauncher(
-            this.renderer.camera,
-            this.inputManager,
-            this.projectileSystem,
-            this.audioSystem
-        );
-        this.weapon.init();
-        this.weaponManager.registerWeapon('croc', this.weapon, 1);
-
-        const waterBalloon = new WaterBalloonLauncher(
-            this.renderer.camera,
-            this.inputManager,
-            this.projectileSystem,
-            this.audioSystem
-        );
-        waterBalloon.init();
-        this.weaponManager.registerWeapon('water_balloon', waterBalloon, 2);
-
-        const gardenGnome = new GardenGnomeLauncher(
-            this.renderer.camera,
-            this.inputManager,
-            this.projectileSystem,
-            this.audioSystem
-        );
-        gardenGnome.init();
-        this.weaponManager.registerWeapon('garden_gnome', gardenGnome, 3);
-
-        this.weaponManager.switchTo(0);
+        this._setupWeapons();
 
         this.collisionSystem.setProjectileSystem(this.projectileSystem);
         this.collisionSystem.setScoreSystem(this.scoreSystem);
@@ -102,6 +76,7 @@ export class Game {
         this.collisionSystem.setVFXSystem(this.vfxSystem);
         this.collisionSystem.setWorldEffectSystem(this.worldEffectSystem);
         this.collisionSystem.setStatusDefs(STATUS_DEFS);
+        this.worldEffectSystem.setStatusDefs(STATUS_DEFS);
         this.collisionSystem.setOnEnemyDefeated((enemy) => {
             this._onEnemyDefeated(enemy);
         });
@@ -129,6 +104,52 @@ export class Game {
         console.log('[Game] Initialized successfully');
     }
 
+    _setupWeapons() {
+        const camera = this.renderer.camera;
+        const inputManager = this.inputManager;
+        const projectileSystem = this.projectileSystem;
+        const vfxSystem = this.vfxSystem;
+        const audioSystem = this.audioSystem;
+
+        const crocWeapon = new CrocLauncher(
+            camera,
+            inputManager,
+            projectileSystem,
+            vfxSystem,
+            audioSystem,
+            WEAPON_DEFS.croc
+        );
+        const crocView = new FirstPersonWeaponView(camera, WEAPON_DEFS.croc);
+        crocWeapon.setView(crocView);
+        this.weaponManager.registerWeapon('croc', crocWeapon, crocView, 0);
+
+        const waterBalloonWeapon = new WaterBalloonLauncher(
+            camera,
+            inputManager,
+            projectileSystem,
+            vfxSystem,
+            audioSystem,
+            WEAPON_DEFS.waterBalloon
+        );
+        const waterBalloonView = new FirstPersonWeaponView(camera, WEAPON_DEFS.waterBalloon);
+        waterBalloonWeapon.setView(waterBalloonView);
+        this.weaponManager.registerWeapon('waterBalloon', waterBalloonWeapon, waterBalloonView, 1);
+
+        const gardenGnomeWeapon = new GardenGnomeLauncher(
+            camera,
+            inputManager,
+            projectileSystem,
+            vfxSystem,
+            audioSystem,
+            WEAPON_DEFS.gardenGnome
+        );
+        const gardenGnomeView = new FirstPersonWeaponView(camera, WEAPON_DEFS.gardenGnome);
+        gardenGnomeWeapon.setView(gardenGnomeView);
+        this.weaponManager.registerWeapon('gardenGnome', gardenGnomeWeapon, gardenGnomeView, 2);
+
+        this.weaponManager.switchTo(0);
+    }
+
     registerKarenFactory(type, factory) {
         if (this.spawnDirector) {
             this.spawnDirector.setKarenRegistry({ [type]: factory });
@@ -147,6 +168,7 @@ export class Game {
         this.vfxSystem.clear();
         this.worldEffectSystem.clear();
         this.scoreSystem.reset();
+        this.weaponManager.clear();
 
         this.sceneManager.clear();
 
@@ -238,12 +260,13 @@ export class Game {
             this.projectileSystem.update(delta);
             this.vfxSystem.update(delta);
             this.worldEffectSystem.update(delta, this.debugEnabled);
+            this.worldEffectSystem.updatePlayer(playerPos, this.playerController.statusEffects);
             this.spawnDirector?.update(delta);
             this.collisionSystem.update(delta, playerPos);
 
             const activeWeapon = this.weaponManager.getActiveWeapon();
             if (activeWeapon) {
-                this.hud.updateWeapon(activeWeapon.name, Infinity);
+                this.hud.updateWeapon(activeWeapon.name, activeWeapon.ammo);
             }
             this.hud.updateWeaponSlots(this.weaponManager.activeIndex);
             this.hud.updateStatusEffects(this.playerController.statusEffects.getActiveEffects());
@@ -254,7 +277,7 @@ export class Game {
                     enemy.updatePerception(delta, playerPos);
                 }
                 if (enemy.updateAbilities) {
-                    enemy.updateAbilities(delta, this.worldEffectSystem);
+                    enemy.updateAbilities(delta, this.worldEffectSystem, this.playerController.statusEffects);
                 }
                 enemy.update(delta);
             }
@@ -288,6 +311,16 @@ export class Game {
         }
         if (e.key === CONSTANTS.RESET_KEY || e.key === 'r') {
             this.reset();
+        }
+
+        const digit = parseInt(e.key, 10);
+        if (digit >= 1 && digit <= 3) {
+            this.weaponManager.handleDigitKey(digit);
+            const activeWeapon = this.weaponManager.getActiveWeapon();
+            if (activeWeapon) {
+                this.hud.updateWeapon(activeWeapon.name, activeWeapon.ammo);
+            }
+            this.hud.updateWeaponSlots(this.weaponManager.activeIndex);
         }
     }
 

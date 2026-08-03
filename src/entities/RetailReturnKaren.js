@@ -59,21 +59,26 @@ export class RetailReturnKaren extends Karen {
         this.currentDialogue = `${ability.name} complete!`;
     }
 
-    updateAbilities(delta, worldEffectSystem) {
+    updateAbilities(delta, worldEffectSystem, playerStatusController) {
         this.worldEffectSystem = worldEffectSystem;
+        this.playerStatusController = playerStatusController;
         for (const ability of this.abilities) {
             ability.update(delta);
 
             if (ability.canUse() && Math.random() < 0.001) {
-                this.tryUseAbility(worldEffectSystem);
+                this.tryUseAbility(worldEffectSystem, playerStatusController);
             }
         }
     }
 
-    tryUseAbility(worldEffectSystem) {
+    tryUseAbility(worldEffectSystem, playerStatusController) {
         for (const ability of this.abilities) {
             if (ability.canUse()) {
                 this.worldEffectSystem = worldEffectSystem;
+                this.playerStatusController = playerStatusController;
+                if (ability.id === 'call_manager') {
+                    return ability.use(this, playerStatusController);
+                }
                 return ability.use(this, worldEffectSystem);
             }
         }
