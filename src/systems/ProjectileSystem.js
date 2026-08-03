@@ -182,6 +182,7 @@ export class ProjectileSystem {
         this.pool = [];
         this.active = [];
         this.debugEnabled = false;
+        this.throwCounts = { croc: 0, waterBalloon: 0, gardenGnome: 0 };
         this._initPool();
     }
 
@@ -201,6 +202,12 @@ export class ProjectileSystem {
 
         projectile.init(config);
         this.scene.add(projectile.mesh);
+
+        // Track throw counts
+        const model = config.model || '';
+        if (model === 'croc') this.throwCounts.croc++;
+        else if (model === 'waterBalloon') this.throwCounts.waterBalloon++;
+        else if (model === 'gardenGnome') this.throwCounts.gardenGnome++;
 
         if (this.debugEnabled) {
             this._addDebugTrail(projectile);
@@ -257,6 +264,13 @@ export class ProjectileSystem {
                 }
             }
         }
+
+        // Reset throw counts
+        this.throwCounts = { croc: 0, waterBalloon: 0, gardenGnome: 0 };
+    }
+
+    getThrowCounts() {
+        return { ...this.throwCounts };
     }
 
     setDebug(enabled) {

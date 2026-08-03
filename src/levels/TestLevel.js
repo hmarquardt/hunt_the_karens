@@ -907,36 +907,8 @@ export class TestLevel extends Level {
     }
 
     getSpawnDefinitions() {
-        return [
-            new SpawnDefinition({
-                karenType: 'manager',
-                position: new THREE.Vector3(-2, 0, -5),
-                patrolCenter: new THREE.Vector3(-2, 0, -5),
-                patrolRadius: 3,
-                orientation: 0,
-            }),
-            new SpawnDefinition({
-                karenType: 'manager',
-                position: new THREE.Vector3(3, 0, -3),
-                patrolCenter: new THREE.Vector3(3, 0, -3),
-                patrolRadius: 2.5,
-                orientation: Math.PI / 6,
-            }),
-            new SpawnDefinition({
-                karenType: 'hoa',
-                position: new THREE.Vector3(12, 0, 0),
-                patrolCenter: new THREE.Vector3(12, 0, 0),
-                patrolRadius: 3,
-                orientation: -Math.PI / 3,
-            }),
-            new SpawnDefinition({
-                karenType: 'retail_return',
-                position: new THREE.Vector3(-8, 0, -3),
-                patrolCenter: new THREE.Vector3(-8, 0, -3),
-                patrolRadius: 2.5,
-                orientation: Math.PI / 4,
-            }),
-        ];
+        // Level 1 spawns enemies through LevelFlowController, not sandbox definitions.
+        return [];
     }
 
     dispose() {

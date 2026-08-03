@@ -15,10 +15,13 @@ import { ScoreSystem } from '../systems/ScoreSystem.js';
 import { VFXSystem } from '../systems/VFXSystem.js';
 import { WorldEffectSystem } from '../systems/WorldEffectSystem.js';
 import { SpawnDirector } from '../systems/SpawnDirector.js';
-import { HUD } from '../ui/HUD.js';
+import { GameHUD } from '../ui/GameHUD.js';
 import { AudioSystem } from '../systems/AudioSystem.js';
 import { WEAPON_DEFS, STATUS_DEFS } from '../config/weapons.js';
 import * as CONSTANTS from '../config/constants.js';
+import { LevelFlowController, PHASES, LEVEL_CONFIG } from '../gameplay/LevelFlowController.js';
+import { RunStats } from '../gameplay/RunStats.js';
+import { HighScore } from '../gameplay/HighScore.js';
 
 export class Game {
     constructor() {
@@ -41,14 +44,19 @@ export class Game {
         this.vfxSystem = new VFXSystem(this.renderer.scene);
         this.worldEffectSystem = new WorldEffectSystem(this.renderer.scene);
         this.spawnDirector = null;
-        this.hud = new HUD(this.scoreSystem);
+        this.hud = new GameHUD(this.scoreSystem);
         this.weaponManager = new WeaponManager(this.renderer.camera, this.inputManager);
 
         this._initAudioOnInteraction = this._initAudioOnInteraction.bind(this);
 
         this.playerController = null;
-        this.weapon = null;
         this.level = null;
+
+        // Level flow
+        this.levelFlow = new LevelFlowController();
+        this.runStats = new RunStats();
+        this._composure = 100;
+        this._weaponsRegistered = false;
 
         this._onKeyDown = this._onKeyDown.bind(this);
         this._onPointerLockChange = this._onPointerLockChange.bind(this);
@@ -103,6 +111,9 @@ export class Game {
 
         this._resetInProgress = false;
 
+        // Build HUD DOM
+        this.hud.build();
+
         document.addEventListener('keydown', this._onKeyDown);
         document.addEventListener('pointerlockchange', this._onPointerLockChange);
         document.addEventListener('click', this._initAudioOnInteraction, { once: true });
@@ -113,6 +124,9 @@ export class Game {
     }
 
     _setupWeapons() {
+        if (this._weaponsRegistered) return;
+        this._weaponsRegistered = true;
+
         const camera = this.renderer.camera;
         const inputManager = this.inputManager;
         const projectileSystem = this.projectileSystem;
@@ -120,11 +134,7 @@ export class Game {
         const audioSystem = this.audioSystem;
 
         const crocWeapon = new CrocLauncher(
-            camera,
-            inputManager,
-            projectileSystem,
-            vfxSystem,
-            audioSystem,
+            camera, inputManager, projectileSystem, vfxSystem, audioSystem,
             WEAPON_DEFS.croc
         );
         const crocView = new FirstPersonWeaponView(camera, WEAPON_DEFS.croc);
@@ -132,11 +142,7 @@ export class Game {
         this.weaponManager.registerWeapon('croc', crocWeapon, crocView, 0);
 
         const waterBalloonWeapon = new WaterBalloonLauncher(
-            camera,
-            inputManager,
-            projectileSystem,
-            vfxSystem,
-            audioSystem,
+            camera, inputManager, projectileSystem, vfxSystem, audioSystem,
             WEAPON_DEFS.waterBalloon
         );
         const waterBalloonView = new FirstPersonWeaponView(camera, WEAPON_DEFS.waterBalloon);
@@ -144,11 +150,7 @@ export class Game {
         this.weaponManager.registerWeapon('waterBalloon', waterBalloonWeapon, waterBalloonView, 1);
 
         const gardenGnomeWeapon = new GardenGnomeLauncher(
-            camera,
-            inputManager,
-            projectileSystem,
-            vfxSystem,
-            audioSystem,
+            camera, inputManager, projectileSystem, vfxSystem, audioSystem,
             WEAPON_DEFS.gardenGnome
         );
         const gardenGnomeView = new FirstPersonWeaponView(camera, WEAPON_DEFS.gardenGnome);
@@ -192,17 +194,39 @@ export class Game {
 
         this.playerController.reset(levelInstance.spawnPoint);
 
-        if (this.spawnDirector && factoryFn) {
-            const spawnDefs = levelInstance.getSpawnDefinitions();
-            this.spawnDirector.addSpawnDefinitions(spawnDefs);
-            await this.spawnDirector.spawnAll(factoryFn);
+        // Reset level flow
+        this.levelFlow.reset();
+        this.runStats.reset();
+        this._composure = 100;
+        this.hud.updateComposure(100);
+
+        // Start intro
+        this.hud.showIntro();
+        this.hud.updateObjective(this.levelFlow.getObjective());
+
+        // Register weapon tracking callbacks
+        this._setupWeaponTracking();
+
+        // Store factory fn
+        if (factoryFn) {
+            this._lastFactoryFn = factoryFn;
         }
 
         this.level = levelInstance;
+        this._resultShown = false;
         this.hud.updateScore(0);
         this.hud.updateCombo(0);
 
         this.isPaused = false;
+
+        // Start run timer after intro
+        setTimeout(() => {
+            this.runStats.startTimer();
+        }, LEVEL_CONFIG.introDuration * 1000);
+    }
+
+    _setupWeaponTracking() {
+        const origFire = this.weaponManager.getActiveWeapon?.bind(this.weaponManager);
     }
 
     _onEnemyDefeated(enemy) {
@@ -210,15 +234,32 @@ export class Game {
             this.audioSystem.playDefeat();
         }
 
+        // Run stats
+        this.runStats.recordHit();
+        this.runStats.recordCombo(this.scoreSystem.getCombo());
+
+        // Level flow: notify enemy defeat
+        this.levelFlow.onEnemyDefeated(enemy);
+
+        // Semantic defeat text
+        const defeatText = this._getDefeatText(enemy);
         if (this.scoreSystem) {
             const result = this.scoreSystem.registerDefeat(enemy.scoreValue);
             if (this.hud) {
-                this.hud.showHitFeedback(`+${result.earned} ${enemy.name} DEFEATED!`);
+                this.hud.showHitFeedback(`+${result.earned} ${defeatText}`);
             }
         }
 
-        if (this.spawnDirector) {
-            this.spawnDirector.scheduleRespawn(enemy);
+        // No automatic respawn for level 1
+    }
+
+    _getDefeatText(enemy) {
+        const type = enemy.karenType || enemy.type || '';
+        switch (type) {
+            case 'manager': return 'RAGE QUIT';
+            case 'hoa': return 'JURISDICTION DISPUTED';
+            case 'retail_return': return 'RETURN DENIED';
+            default: return 'INCIDENT RESOLVED';
         }
     }
 
@@ -242,6 +283,7 @@ export class Game {
         if (!this.level || !this._lastFactoryFn) return;
 
         this._resetInProgress = true;
+        this.hud.hideResult();
         this.loadLevel(this.level, this._lastFactoryFn).then(() => {
             this._resetInProgress = false;
         }).catch(() => {
@@ -249,8 +291,71 @@ export class Game {
         });
     }
 
-    setLastFactoryFn(fn) {
-        this._lastFactoryFn = fn;
+    _showResultScreen() {
+        this.runStats.stopTimer();
+        this.runStats.composureRemaining = Math.max(0, this._composure);
+        this.runStats.score = this.scoreSystem.getScore();
+        this.runStats.victory = this.levelFlow.getPhase() === PHASES.VICTORY;
+        this.runStats.incidentsResolved = this.levelFlow.getPhase() === PHASES.VICTORY ? 4 : 0;
+
+        // Composure bonus
+        if (this.runStats.victory && this._composure > 0) {
+            this.runStats.addScore(Math.round(this._composure * 10));
+        }
+
+        // Sync throw counts from projectile system
+        const throws = this.projectileSystem.getThrowCounts();
+
+        const rank = this.runStats.getRank();
+        const best = HighScore.save({
+            score: this.runStats.score,
+            time: this.runStats.totalTime,
+            rank,
+            combo: this.runStats.highestCombo,
+        });
+
+        this.hud.showResult({
+            victory: this.runStats.victory,
+            score: this.runStats.score,
+            time: this.runStats.totalTime,
+            accuracy: this.runStats.getAccuracy(),
+            combo: this.runStats.highestCombo,
+            incidents: this.runStats.incidentsResolved,
+            composure: Math.round(this._composure),
+            crocThrows: throws.croc,
+            balloonThrows: throws.waterBalloon,
+            gnomeThrows: throws.gardenGnome,
+            rank,
+            bestScore: best.bestScore,
+            bestRank: { label: best.bestRank },
+        });
+
+        this.levelFlow.showResult();
+    }
+
+    _advancePhaseDebug() {
+        if (!this.debugEnabled) return;
+        const phase = this.levelFlow.getPhase();
+        if (this.levelFlow.isWaveActive()) {
+            // Resolve all enemies to complete wave
+            const enemies = this.spawnDirector?.getEntities() || [];
+            for (const e of enemies) {
+                if (e.isAlive) {
+                    e.isAlive = false;
+                    this.levelFlow.onEnemyDefeated(e);
+                }
+            }
+        } else if (phase === PHASES.INTRO) {
+            this.levelFlow.phaseTime = LEVEL_CONFIG.introDuration + 1;
+        } else if (phase.startsWith('BREATHER')) {
+            this.levelFlow.phaseTime = LEVEL_CONFIG.breatherDuration + 1;
+        }
+    }
+
+    _refillComposureDebug() {
+        if (!this.debugEnabled) return;
+        this._composure = Math.min(100, this._composure + 25);
+        this.hud.updateComposure(this._composure);
     }
 
     toggleDebug() {
@@ -283,6 +388,48 @@ export class Game {
             this.vfxSystem.update(delta);
             this.worldEffectSystem.update(delta, this.debugEnabled);
             this.worldEffectSystem.updatePlayer(playerPos, this.playerController.statusEffects);
+
+            // Level flow update
+            this.levelFlow.update(delta, playerPos, this._composure, this.scoreSystem);
+            this.hud.updateAnnouncement(delta);
+            this.hud.updateHint(delta);
+
+            // Process level flow transitions
+            const transitions = this.levelFlow.popTransitions();
+            for (const t of transitions) {
+                this._handleTransition(t);
+            }
+
+            // Spawn pending enemies from level flow
+            if (this.spawnDirector && this.levelFlow.isWaveActive()) {
+                const pending = this.levelFlow.consumePendingSpawns();
+                for (const spawn of pending) {
+                    this._spawnWaveEnemy(spawn);
+                }
+            }
+
+            // Composure drain during waves
+            if (this.levelFlow.isWaveActive() && this._composure > 0) {
+                const enemies = this.spawnDirector?.getEntities() || [];
+                const aliveEnemies = enemies.filter(e => e.isAlive);
+                if (aliveEnemies.length > 0) {
+                    const drain = aliveEnemies.length * 0.5 * delta;
+                    this._composure = Math.max(0, this._composure - drain);
+                    this.hud.updateComposure(Math.round(this._composure));
+
+                    if (this._composure <= 0 && !this.levelFlow.isTerminal()) {
+                        this.levelFlow.triggerDefeat();
+                        this.runStats.stopTimer();
+                    }
+                }
+            }
+
+            // Check terminal state
+            if (this.levelFlow.isTerminal() && !this._resultShown) {
+                this._resultShown = true;
+                setTimeout(() => this._showResultScreen(), 1500);
+            }
+
             this.spawnDirector?.update(delta);
             this.collisionSystem.update(delta, playerPos);
 
@@ -291,7 +438,8 @@ export class Game {
                 this.hud.updateWeapon(activeWeapon.name, activeWeapon.ammo);
             }
             this.hud.updateWeaponSlots(this.weaponManager.activeIndex);
-            this.hud.updateStatusEffects(this.playerController.statusEffects.getActiveEffects());
+            this.hud.updateStatusEffects(this.playerController.statusEffects);
+            this.hud.updateObjective(this.levelFlow.getObjective());
 
             const enemies = this.spawnDirector?.getEntities() || [];
             for (const enemy of enemies) {
@@ -315,6 +463,7 @@ export class Game {
         if (this.debugEnabled) {
             const info = this.renderer.renderer.info;
             const envStats = this.level?.getStats?.() || {};
+            const flowDebug = this.levelFlow.getDebugInfo();
             this.hud.updateDebug({
                 fps: this.currentFPS,
                 frameTime: delta * 1000,
@@ -332,45 +481,158 @@ export class Game {
                 vehicles: envStats.vehicleCount || 0,
                 carts: envStats.cartCount || 0,
                 trees: envStats.treeCount || 0,
+                levelPhase: flowDebug.phase,
+                levelPhaseTime: flowDebug.phaseTime,
+                levelEnemiesAlive: flowDebug.enemiesAlive,
+                composure: Math.round(this._composure),
+                runTime: this.runStats.totalTime > 0 ? this.runStats.totalTime.toFixed(1) : this.runStats.runTime.toFixed(1),
             });
         }
 
-        // Debug test hook
         if (typeof window !== 'undefined') {
             window.__HTK_DEBUG__ = {
                 game: this,
                 rendererInfo: () => this.renderer.renderer.info,
                 enemies: () => this.spawnDirector?.getEntities() || [],
                 environmentStats: () => this.level?.getStats?.() || {},
+                levelFlow: () => this.levelFlow.getDebugInfo(),
+                composure: this._composure,
+                runStats: this.runStats,
             };
         }
     };
+
+    _handleTransition(t) {
+        switch (t.type) {
+            case 'phase_announcement':
+                this.hud.showAnnouncement(t.incident, t.subtitle, 3000);
+                this.hud.updateObjective(t.objective);
+                break;
+            case 'weapon_unlock':
+                this._unlockWeapon(t.type, t.text, t.weaponName, t.key);
+                break;
+            case 'wave_complete_bonus':
+                this.scoreSystem.registerHit(t.amount);
+                this.hud.showAnnouncement('INCIDENT RESOLVED', `+${t.amount}`, 2000);
+                this.runStats.incidentsResolved++;
+                break;
+            case 'incident_resolved':
+                break;
+            case 'breather_start':
+                this.hud.updateObjective(t.objective);
+                break;
+            case 'victory':
+                this.runStats.victory = true;
+                break;
+            case 'defeat':
+                this.runStats.victory = false;
+                this.runStats.composureLost = true;
+                break;
+            case 'composure_recovery':
+                this._composure = Math.min(100, this._composure + t.amount);
+                this.hud.updateComposure(Math.round(this._composure));
+                this.hud.showHint(`YOU FOUND A QUIET PARKING SPACE — COMPOSURE +${t.amount}`, 3000);
+                break;
+            case 'enemy_spawn':
+                break;
+            case 'show_result':
+                break;
+        }
+    }
+
+    _unlockWeapon(type, announcementText, weaponName, key) {
+        // Enable weapon slot
+        const slotMap = { waterBalloon: 1, gardenGnome: 2 };
+        const slot = slotMap[type];
+        if (slot !== undefined) {
+            this.weaponManager._weaponSlots[slot] = type;
+        }
+
+        this.hud.showAnnouncement(announcementText, weaponName, 3000);
+        this.hud.showHint(`PRESS ${key} — ${weaponName.toUpperCase()}`, 4000);
+    }
+
+    _spawnWaveEnemy(spawn) {
+        if (!this.spawnDirector) return;
+
+        const karenType = spawn.type === 'manager' ? 'manager'
+            : spawn.type === 'hoa' ? 'hoa'
+            : 'retail_return';
+
+        const position = new THREE.Vector3(spawn.position.x, 0, spawn.position.z);
+        const config = this.levelFlow.getFinalConfig();
+        const overrides = {};
+        if (config.abilityCooldownMultiplier) {
+            overrides.abilityCooldownMultiplier = config.abilityCooldownMultiplier;
+        }
+        if (config.movementSpeedMultiplier) {
+            overrides.movementSpeedMultiplier = config.movementSpeedMultiplier;
+        }
+
+        const def = {
+            karenType,
+            position,
+            patrolCenter: position,
+            patrolRadius: spawn.patrolRadius || 3,
+            orientation: 0,
+            respawn: false,
+            ...overrides,
+        };
+
+        this.spawnDirector.addSpawnDefinitions([def]);
+        this.spawnDirector.spawnSingle(def, karenType, this._lastFactoryFn).then((enemy) => {
+            if (enemy) {
+                this.levelFlow.onEnemySpawned(enemy);
+                this.collisionSystem.registerEnemy(enemy);
+            }
+        });
+    }
 
     _onKeyDown(e) {
         if (e.key === CONSTANTS.DEBUG_KEY || e.key === 'F3') {
             this.toggleDebug();
         }
+        if ((e.key === CONSTANTS.RESET_KEY || e.key === 'r' || e.key === 'R') && this.levelFlow.isTerminal()) {
+            e.preventDefault();
+            this.reset();
+            return;
+        }
         if (e.key === CONSTANTS.RESET_KEY || e.key === 'r') {
             this.reset();
         }
 
+        // Debug shortcuts
+        if (this.debugEnabled) {
+            if (e.key === 'F6') {
+                this._advancePhaseDebug();
+            }
+            if (e.key === 'F7') {
+                this._refillComposureDebug();
+            }
+        }
+
         const digit = parseInt(e.key, 10);
         if (digit >= 1 && digit <= 3) {
-            this.weaponManager.handleDigitKey(digit);
-            const activeWeapon = this.weaponManager.getActiveWeapon();
-            if (activeWeapon) {
-                this.hud.updateWeapon(activeWeapon.name, activeWeapon.ammo);
+            const unlocks = this.levelFlow.getWeaponUnlocks();
+            const slotToType = { 1: 'croc', 2: 'waterBalloon', 3: 'gardenGnome' };
+            const type = slotToType[digit];
+            if (type && unlocks[type]) {
+                this.weaponManager.handleDigitKey(digit);
+                const activeWeapon = this.weaponManager.getActiveWeapon();
+                if (activeWeapon) {
+                    this.hud.updateWeapon(activeWeapon.name, activeWeapon.ammo);
+                }
+                this.hud.updateWeaponSlots(this.weaponManager.activeIndex);
             }
-            this.hud.updateWeaponSlots(this.weaponManager.activeIndex);
         }
     }
 
     _onPointerLockChange() {
         this.isPaused = document.pointerLockElement !== this.renderer.renderer.domElement;
         if (!this.isPaused) {
-            this.hud.showHUD();
+            this.hud.showHUD?.();
         } else {
-            this.hud.showBlocker();
+            this.hud.showBlocker?.();
         }
     }
 

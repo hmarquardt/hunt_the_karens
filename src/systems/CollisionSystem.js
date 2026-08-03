@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as CONSTANTS from '../config/constants.js';
+import { segmentAabbIntersect } from '../math/CollisionMath.js';
 
 const _scratchVec1 = new THREE.Vector3();
 const _scratchVec2 = new THREE.Vector3();
@@ -10,94 +11,6 @@ const VEHICLE_HIT_MESSAGES = [
     'THAT\'LL BUFF OUT',
     'PARKING LOT JUSTICE',
 ];
-
-const EPSILON = 1e-6;
-
-function _segmentAabbIntersect(
-    start,
-    end,
-    minX, minY, minZ,
-    maxX, maxY, maxZ,
-) {
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    const dz = end.z - start.z;
-
-    let tMin = 0;
-    let tMax = 1;
-
-    let hitAxis = -1;
-    let hitSign = 0;
-
-    // X axis
-    if (Math.abs(dx) < EPSILON) {
-        if (start.x < minX || start.x > maxX) return { hit: false };
-    } else {
-        let t0 = (minX - start.x) / dx;
-        let t1 = (maxX - start.x) / dx;
-        if (t0 > t1) {
-            const tmp = t0; t0 = t1; t1 = tmp;
-        }
-        if (t0 > tMin) { tMin = t0; hitAxis = 0; hitSign = t0 === (minX - start.x) / dx ? -1 : 1; }
-        if (t1 < tMax) tMax = t1;
-        if (tMin > tMax) return { hit: false };
-    }
-
-    // Y axis
-    if (Math.abs(dy) < EPSILON) {
-        if (start.y < minY || start.y > maxY) return { hit: false };
-    } else {
-        let t0 = (minY - start.y) / dy;
-        let t1 = (maxY - start.y) / dy;
-        if (t0 > t1) {
-            const tmp = t0; t0 = t1; t1 = tmp;
-        }
-        if (t0 > tMin) { tMin = t0; hitAxis = 1; hitSign = t0 === (minY - start.y) / dy ? -1 : 1; }
-        if (t1 < tMax) tMax = t1;
-        if (tMin > tMax) return { hit: false };
-    }
-
-    // Z axis
-    if (Math.abs(dz) < EPSILON) {
-        if (start.z < minZ || start.z > maxZ) return { hit: false };
-    } else {
-        let t0 = (minZ - start.z) / dz;
-        let t1 = (maxZ - start.z) / dz;
-        if (t0 > t1) {
-            const tmp = t0; t0 = t1; t1 = tmp;
-        }
-        if (t0 > tMin) { tMin = t0; hitAxis = 2; hitSign = t0 === (minZ - start.z) / dz ? -1 : 1; }
-        if (t1 < tMax) tMax = t1;
-        if (tMin > tMax) return { hit: false };
-    }
-
-    if (tMin < 0 || tMin > 1) return { hit: false };
-
-    // Starting inside the box
-    if (tMin === 0) {
-        if (hitAxis === -1) {
-            // Fully inside, use direction to pick exit face
-            hitAxis = Math.abs(dx) > Math.abs(dz)
-                ? (dx > 0 ? 0 : 0)
-                : (dz > 0 ? 2 : 2);
-            hitSign = hitAxis === 0 ? Math.sign(dx) || 1 : Math.sign(dz) || 1;
-        }
-    }
-
-    const localNormal = _scratchVec1.set(0, 0, 0);
-    if (hitAxis === 0) localNormal.set(hitSign, 0, 0);
-    else if (hitAxis === 1) localNormal.set(0, hitSign, 0);
-    else localNormal.set(0, 0, hitSign);
-
-    const hitPoint = _scratchVec2.copy(start).addScaledVector(_scratchVec3.set(dx, dy, dz), tMin);
-
-    return {
-        hit: true,
-        t: tMin,
-        localPoint: hitPoint.clone(),
-        localNormal: localNormal.clone(),
-    };
-}
 
 export class CollisionSystem {
     constructor() {
@@ -310,12 +223,9 @@ export class CollisionSystem {
         const localEndY = segment.end.y;
         const localEndZ = -ex * sinR + ez * cosR;
 
-        const localStart = _scratchVec1.set(localStartX, localStartY, localStartZ);
-        const localEnd = _scratchVec2.set(localEndX, localEndY, localEndZ);
-
-        const result = _segmentAabbIntersect(
-            localStart,
-            localEnd,
+        const result = segmentAabbIntersect(
+            { x: localStartX, y: localStartY, z: localStartZ },
+            { x: localEndX, y: localEndY, z: localEndZ },
             minX, minY, minZ,
             maxX, maxY, maxZ,
         );
@@ -324,7 +234,7 @@ export class CollisionSystem {
 
         // Transform hit point to world space
         const lp = result.localPoint;
-        const hitWorld = _scratchVec3.set(
+        const hitWorld = _scratchVec1.set(
             col.position.x + lp.x * cosR - lp.z * sinR,
             lp.y,
             col.position.z + lp.x * sinR + lp.z * cosR,
@@ -332,7 +242,7 @@ export class CollisionSystem {
 
         // Transform local normal to world space
         const ln = result.localNormal;
-        const worldNormal = _scratchVec1.set(
+        const worldNormal = _scratchVec2.set(
             ln.x * cosR - ln.z * sinR,
             ln.y,
             ln.x * sinR + ln.z * cosR,
@@ -618,4 +528,3 @@ export class CollisionSystem {
     }
 }
 
-export { _segmentAabbIntersect };

@@ -60,6 +60,16 @@ export class SpawnDirector {
         }
     }
 
+    async spawnSingle(def, karenType, factoryFn) {
+        const spawnDef = new SpawnDefinition({
+            ...def,
+            karenType: def.karenType || karenType,
+            respawnEnabled: false,
+            respawnDelay: 0,
+        });
+        return this._spawnEntity(spawnDef, factoryFn);
+    }
+
     async _spawnEntity(def, factoryFn) {
         if (this.karenRegistry && !this.karenRegistry[def.karenType] && def.karenType !== 'manager') {
             console.warn('[SpawnDirector] Unknown Karen type:', def.karenType, '- defaulting to manager');
