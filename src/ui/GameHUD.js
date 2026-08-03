@@ -195,6 +195,19 @@ export class GameHUD {
         // Handled by parent
     }
 
+    updateWeapon(name, ammo) {
+        const el = document.getElementById('weapon-display');
+        if (el) el.textContent = `${name} | ${ammo}`;
+    }
+
+    updateWeaponSlots(activeIndex) {
+        // Weapon slot indicators handled by intro/result or omitted for simplicity
+    }
+
+    updateStatusEffects(effects) {
+        // Status effects (SLOWED, STUNNED) visual indicators — omitted for Milestone 8
+    }
+
     toggleDebug(enabled) {
         if (this._debugOverlay) {
             this._debugOverlay.style.opacity = enabled ? '1' : '0';
