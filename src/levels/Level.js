@@ -16,25 +16,34 @@ export class Level {
     }
 
     _setupLighting(sceneManager) {
-        const ambient = new THREE.AmbientLight(0xffffff, 0.4);
-        sceneManager.addLight(ambient);
-
-        const sun = new THREE.DirectionalLight(0xfff4e0, 1.5);
-        sun.position.set(20, 30, 15);
+        // Warm late-afternoon sun
+        const sun = new THREE.DirectionalLight(0xffeedd, 1.8);
+        sun.position.set(15, 25, -10);
         sun.castShadow = true;
         sun.shadow.mapSize.width = 2048;
         sun.shadow.mapSize.height = 2048;
         sun.shadow.camera.near = 0.5;
-        sun.shadow.camera.far = 80;
-        sun.shadow.camera.left = -30;
-        sun.shadow.camera.right = 30;
-        sun.shadow.camera.top = 30;
-        sun.shadow.camera.bottom = -30;
-        sun.shadow.bias = -0.001;
+        sun.shadow.camera.far = 100;
+        sun.shadow.camera.left = -35;
+        sun.shadow.camera.right = 35;
+        sun.shadow.camera.top = 35;
+        sun.shadow.camera.bottom = -35;
+        sun.shadow.bias = -0.0005;
+        sun.shadow.normalBias = 0.02;
         sceneManager.addLight(sun);
 
-        const hemi = new THREE.HemisphereLight(0x87CEEB, 0x5a7247, 0.3);
+        // Soft ambient fill
+        const ambient = new THREE.AmbientLight(0x8899bb, 0.35);
+        sceneManager.addLight(ambient);
+
+        // Hemisphere for sky/ground color separation
+        const hemi = new THREE.HemisphereLight(0x87CEEB, 0x5a4a3a, 0.5);
         sceneManager.addLight(hemi);
+
+        // Subtle warm fill from opposite side
+        const fill = new THREE.DirectionalLight(0xffccaa, 0.3);
+        fill.position.set(-10, 5, 15);
+        sceneManager.addLight(fill);
     }
 
     _setupGround(sceneManager) {

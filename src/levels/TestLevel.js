@@ -15,8 +15,81 @@ export class TestLevel extends Level {
 
     async build(sceneManager) {
         this._setupLighting(sceneManager);
+        this._setupSky(sceneManager);
         this._setupGround(sceneManager);
         this._setupEnvironment(sceneManager);
+    }
+
+    _setupSky(sceneManager) {
+        // Gradient sky dome
+        const skyGeo = new THREE.SphereGeometry(80, 32, 16);
+        const skyMat = new THREE.ShaderMaterial({
+            uniforms: {
+                topColor: { value: new THREE.Color(0x4488cc) },
+                bottomColor: { value: new THREE.Color(0xccddaa) },
+                offset: { value: 10 },
+                exponent: { value: 0.4 },
+            },
+            vertexShader: `
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPosition.xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 topColor;
+                uniform vec3 bottomColor;
+                uniform float offset;
+                uniform float exponent;
+                varying vec3 vWorldPosition;
+                void main() {
+                    float h = normalize(vWorldPosition + offset).y;
+                    gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
+                }
+            `,
+            side: THREE.BackSide,
+        });
+        const sky = new THREE.Mesh(skyGeo, skyMat);
+        sceneManager.add(sky, false);
+
+        // Distant tree/building silhouettes
+        this._buildDistantSilhouettes(sceneManager);
+    }
+
+    _buildDistantSilhouettes(sceneManager) {
+        const silhouetteMat = new THREE.MeshStandardMaterial({
+            color: 0x556655,
+            roughness: 0.9,
+            metalness: 0,
+        });
+
+        // Distant tree line
+        for (let i = -10; i <= 10; i++) {
+            const h = 2 + Math.random() * 3;
+            const treeGeo = new THREE.ConeGeometry(1 + Math.random(), h, 6);
+            const tree = new THREE.Mesh(treeGeo, silhouetteMat);
+            tree.position.set(i * 3, h / 2, -40 - Math.random() * 5);
+            sceneManager.add(tree, false);
+        }
+
+        // Distant commercial buildings
+        const buildingColors = [0x887766, 0x776655, 0x998877];
+        for (let i = 0; i < 4; i++) {
+            const w = 4 + Math.random() * 6;
+            const h = 3 + Math.random() * 5;
+            const d = 3 + Math.random() * 4;
+            const buildingGeo = new THREE.BoxGeometry(w, h, d);
+            const buildingMat = new THREE.MeshStandardMaterial({
+                color: buildingColors[i % buildingColors.length],
+                roughness: 0.85,
+                metalness: 0.05,
+            });
+            const building = new THREE.Mesh(buildingGeo, buildingMat);
+            building.position.set(-15 + i * 10, h / 2, -35 - Math.random() * 10);
+            sceneManager.add(building, false);
+        }
     }
 
     _setupEnvironment(sceneManager) {
