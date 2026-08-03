@@ -81,6 +81,11 @@ export class Game {
             this._onEnemyDefeated(enemy);
         });
 
+        this.abilityContext = {
+            worldEffectSystem: this.worldEffectSystem,
+            playerStatusController: this.playerController.statusEffects,
+        };
+
         this.scoreSystem.setHUD(this.hud);
 
         const characterAssets = new Map();
@@ -272,16 +277,12 @@ export class Game {
             this.hud.updateStatusEffects(this.playerController.statusEffects.getActiveEffects());
 
             const enemies = this.spawnDirector?.getEntities() || [];
-            const abilityContext = {
-                worldEffectSystem: this.worldEffectSystem,
-                playerStatusController: this.playerController.statusEffects,
-            };
             for (const enemy of enemies) {
                 if (enemy.updatePerception) {
                     enemy.updatePerception(delta, playerPos);
                 }
-                if (enemy.abilityContext !== abilityContext && enemy.setAbilityContext) {
-                    enemy.setAbilityContext(abilityContext);
+                if (enemy.abilityContext !== this.abilityContext && enemy.setAbilityContext) {
+                    enemy.setAbilityContext(this.abilityContext);
                 }
                 if (enemy.updateAbilities) {
                     enemy.updateAbilities(delta);

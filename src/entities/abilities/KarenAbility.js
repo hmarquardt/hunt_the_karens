@@ -76,7 +76,10 @@ export class KarenAbility {
         this.state = 'ready';
         this.stateTimer = 0;
         this.remainingCooldown = 0;
+        this._onReset();
     }
+
+    _onReset() {}
 
     dispose() {}
 }

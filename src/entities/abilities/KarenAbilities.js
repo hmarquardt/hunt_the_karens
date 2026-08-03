@@ -1,6 +1,12 @@
 import * as THREE from 'three';
 import { KarenAbility } from './KarenAbility.js';
 
+function disposeVfxEntry(vfx) {
+    if (vfx.mesh.parent) vfx.mesh.parent.remove(vfx.mesh);
+    if (vfx.geometry && !vfx._shared) vfx.geometry.dispose();
+    if (vfx.material) vfx.material.dispose();
+}
+
 export class CallManagerAbility extends KarenAbility {
     constructor(config) {
         super({
@@ -16,9 +22,11 @@ export class CallManagerAbility extends KarenAbility {
         this._vfx = [];
     }
 
-    setContext(karen, playerStatusController) {
+    setContext(karen, context) {
         this.karen = karen;
-        this.playerStatusController = playerStatusController;
+        this.context = context;
+        this.playerStatusController = context?.playerStatusController || null;
+        this.worldEffectSystem = context?.worldEffectSystem || null;
     }
 
     _onTelegraph() {
@@ -63,16 +71,19 @@ export class CallManagerAbility extends KarenAbility {
     _onExecute() {
         this._clearTelegraphVFX();
 
-        if (this.playerStatusController) {
-            this.playerStatusController.add({
-                id: 'escalated',
-                name: 'ESCALATED',
-                duration: this.escalatedDuration,
-                modifiers: {
-                    speedMultiplier: 0.75,
-                },
-            });
+        if (!this.playerStatusController?.add) {
+            console.warn('[CallManagerAbility] Missing playerStatusController — ESCALATED not applied');
+            return;
         }
+
+        this.playerStatusController.add({
+            id: 'escalated',
+            name: 'ESCALATED',
+            duration: this.escalatedDuration,
+            modifiers: {
+                speedMultiplier: 0.75,
+            },
+        });
 
         if (this.karen) {
             this.karen.statusEffects.add({
@@ -104,18 +115,11 @@ export class CallManagerAbility extends KarenAbility {
     }
 
     _clearTelegraphVFX() {
-        for (const vfx of this._vfx) {
-            if (vfx.mesh.parent) vfx.mesh.parent.remove(vfx.mesh);
-            if (vfx.geometry) vfx.geometry.dispose();
-            if (vfx.material) vfx.material.dispose();
-        }
+        this._vfx.forEach(disposeVfxEntry);
         this._vfx = [];
     }
 
-    _onComplete() {
-        if (this.karen) {
-            this.karen.updateDialogue('');
-        }
+    _onReset() {
         this._clearTelegraphVFX();
     }
 
@@ -123,27 +127,35 @@ export class CallManagerAbility extends KarenAbility {
         super.update(delta);
 
         const now = performance.now();
-        for (const vfx of this._vfx) {
+        this._vfx = this._vfx.filter((vfx) => {
             const elapsed = now - vfx.startTime;
             if (vfx.type === 'pulse') {
                 const pulse = Math.sin(elapsed * 0.008) * 0.3 + 0.7;
                 vfx.material.opacity = pulse;
                 const scale = 1 + Math.sin(elapsed * 0.006) * 0.2;
                 vfx.mesh.scale.set(scale, scale, scale);
+                return true;
             } else if (vfx.type === 'glow') {
                 const pulse = Math.sin(elapsed * 0.01) * 0.2 + 0.4;
                 vfx.material.opacity = pulse;
+                return true;
             } else if (vfx.type === 'alert' && vfx.duration) {
                 const ratio = Math.max(0, 1 - elapsed / vfx.duration);
                 vfx.material.opacity = ratio * 0.8;
                 vfx.mesh.position.y = 2.0 + (1 - ratio) * 0.3;
                 if (ratio <= 0) {
-                    if (vfx.mesh.parent) vfx.mesh.parent.remove(vfx.mesh);
-                    vfx.geometry.dispose();
-                    vfx.material.dispose();
+                    disposeVfxEntry(vfx);
+                    return false;
                 }
+                return true;
             }
-        }
+            return true;
+        });
+    }
+
+    reset() {
+        super.reset();
+        this._onReset();
     }
 
     dispose() {
@@ -167,9 +179,11 @@ export class ViolationNoticeAbility extends KarenAbility {
         this._vfx = [];
     }
 
-    setContext(karen, worldEffectSystem) {
+    setContext(karen, context) {
         this.karen = karen;
-        this.worldEffectSystem = worldEffectSystem;
+        this.context = context;
+        this.playerStatusController = context?.playerStatusController || null;
+        this.worldEffectSystem = context?.worldEffectSystem || null;
     }
 
     _onTelegraph() {
@@ -197,25 +211,29 @@ export class ViolationNoticeAbility extends KarenAbility {
         attachPoint.add(glow);
         this._vfx.push({ mesh: glow, material: glowMat, geometry: glowGeo, startTime: performance.now(), type: 'glow' });
 
-        const sparkGeo = new THREE.OctahedronGeometry(0.04, 0);
-        const sparkMat = new THREE.MeshBasicMaterial({
-            color: 0xffdd44,
-            transparent: true,
-            opacity: 0.8,
-        });
         for (let i = 0; i < 3; i++) {
-            const spark = new THREE.Mesh(sparkGeo, sparkMat.clone());
+            const sparkGeo = new THREE.OctahedronGeometry(0.04, 0);
+            const sparkMat = new THREE.MeshBasicMaterial({
+                color: 0xffdd44,
+                transparent: true,
+                opacity: 0.8,
+            });
+            const spark = new THREE.Mesh(sparkGeo, sparkMat);
             const angle = (i / 3) * Math.PI * 2;
             spark.position.set(Math.cos(angle) * 0.15, 0.1 + Math.sin(angle * 2) * 0.05, Math.sin(angle) * 0.15);
             attachPoint.add(spark);
-            this._vfx.push({ mesh: spark, material: spark.material, geometry: sparkGeo, startTime: performance.now(), type: 'spark', angle, index: i });
+            this._vfx.push({ mesh: spark, material: sparkMat, geometry: sparkGeo, startTime: performance.now(), type: 'spark', angle, index: i });
         }
     }
 
     _onExecute() {
         this._clearTelegraphVFX();
 
-        if (!this.karen || !this.worldEffectSystem) return;
+        if (!this.karen) return;
+        if (!this.worldEffectSystem?.add) {
+            console.warn('[ViolationNoticeAbility] Missing worldEffectSystem — notice not placed');
+            return;
+        }
 
         const dir = new THREE.Vector3();
         this.karen.getWorldDirection(dir);
@@ -254,18 +272,11 @@ export class ViolationNoticeAbility extends KarenAbility {
     }
 
     _clearTelegraphVFX() {
-        for (const vfx of this._vfx) {
-            if (vfx.mesh.parent) vfx.mesh.parent.remove(vfx.mesh);
-            if (vfx.geometry && !vfx._shared) vfx.geometry.dispose();
-            if (vfx.material) vfx.material.dispose();
-        }
+        this._vfx.forEach(disposeVfxEntry);
         this._vfx = [];
     }
 
-    _onComplete() {
-        if (this.karen) {
-            this.karen.updateDialogue('');
-        }
+    _onReset() {
         this._clearTelegraphVFX();
     }
 
@@ -273,28 +284,36 @@ export class ViolationNoticeAbility extends KarenAbility {
         super.update(delta);
 
         const now = performance.now();
-        for (const vfx of this._vfx) {
+        this._vfx = this._vfx.filter((vfx) => {
             const elapsed = now - vfx.startTime;
             if (vfx.type === 'glow') {
                 const pulse = Math.sin(elapsed * 0.006) * 0.2 + 0.5;
                 vfx.material.opacity = pulse;
+                return true;
             } else if (vfx.type === 'spark') {
                 const orbit = elapsed * 0.003 + vfx.angle;
                 vfx.mesh.position.x = Math.cos(orbit) * 0.15;
                 vfx.mesh.position.z = Math.sin(orbit) * 0.15;
                 vfx.mesh.position.y = 0.1 + Math.sin(orbit * 3) * 0.05;
                 vfx.material.opacity = Math.sin(elapsed * 0.01) * 0.4 + 0.4;
+                return true;
             } else if (vfx.type === 'flash' && vfx.duration) {
                 const ratio = Math.max(0, 1 - elapsed / vfx.duration);
                 vfx.material.opacity = ratio * 0.9;
                 vfx.mesh.scale.set(1 + (1 - ratio) * 0.5, 1 + (1 - ratio) * 0.5, 1);
                 if (ratio <= 0) {
-                    if (vfx.mesh.parent) vfx.mesh.parent.remove(vfx.mesh);
-                    vfx.geometry.dispose();
-                    vfx.material.dispose();
+                    disposeVfxEntry(vfx);
+                    return false;
                 }
+                return true;
             }
-        }
+            return true;
+        });
+    }
+
+    reset() {
+        super.reset();
+        this._onReset();
     }
 
     dispose() {
@@ -318,9 +337,11 @@ export class ReturnWithoutReceiptAbility extends KarenAbility {
         this._vfx = [];
     }
 
-    setContext(karen, worldEffectSystem) {
+    setContext(karen, context) {
         this.karen = karen;
-        this.worldEffectSystem = worldEffectSystem;
+        this.context = context;
+        this.playerStatusController = context?.playerStatusController || null;
+        this.worldEffectSystem = context?.worldEffectSystem || null;
     }
 
     _onTelegraph() {
@@ -368,7 +389,11 @@ export class ReturnWithoutReceiptAbility extends KarenAbility {
     _onExecute() {
         this._clearTelegraphVFX();
 
-        if (!this.karen || !this.worldEffectSystem) return;
+        if (!this.karen) return;
+        if (!this.worldEffectSystem?.add) {
+            console.warn('[ReturnWithoutReceiptAbility] Missing worldEffectSystem — returned item not placed');
+            return;
+        }
 
         const placePos = this.karen.position.clone();
         placePos.y = 0;
@@ -405,18 +430,11 @@ export class ReturnWithoutReceiptAbility extends KarenAbility {
     }
 
     _clearTelegraphVFX() {
-        for (const vfx of this._vfx) {
-            if (vfx.mesh.parent) vfx.mesh.parent.remove(vfx.mesh);
-            if (vfx.geometry) vfx.geometry.dispose();
-            if (vfx.material) vfx.material.dispose();
-        }
+        this._vfx.forEach(disposeVfxEntry);
         this._vfx = [];
     }
 
-    _onComplete() {
-        if (this.karen) {
-            this.karen.updateDialogue('');
-        }
+    _onReset() {
         this._clearTelegraphVFX();
     }
 
@@ -424,30 +442,38 @@ export class ReturnWithoutReceiptAbility extends KarenAbility {
         super.update(delta);
 
         const now = performance.now();
-        for (const vfx of this._vfx) {
+        this._vfx = this._vfx.filter((vfx) => {
             const elapsed = now - vfx.startTime;
             if (vfx.type === 'highlight') {
                 const pulse = Math.sin(elapsed * 0.005) * 0.2 + 0.4;
                 vfx.material.opacity = pulse;
                 const scale = 1 + Math.sin(elapsed * 0.008) * 0.15;
                 vfx.mesh.scale.set(scale, scale, scale);
+                return true;
             } else if (vfx.type === 'paper') {
                 const float = elapsed * 0.001 + vfx.index;
                 vfx.mesh.position.y += Math.sin(float * 2) * 0.001;
                 vfx.mesh.rotation.z += 0.02;
                 vfx.material.opacity = Math.sin(elapsed * 0.005 + vfx.index) * 0.3 + 0.4;
+                return true;
             } else if (vfx.type === 'drop' && vfx.duration) {
                 const ratio = Math.max(0, 1 - elapsed / vfx.duration);
                 vfx.material.opacity = ratio * 0.8;
                 vfx.mesh.position.y = 0.8 - (1 - ratio) * 0.6;
                 vfx.mesh.rotation.x = (1 - ratio) * 0.5;
                 if (ratio <= 0) {
-                    if (vfx.mesh.parent) vfx.mesh.parent.remove(vfx.mesh);
-                    vfx.geometry.dispose();
-                    vfx.material.dispose();
+                    disposeVfxEntry(vfx);
+                    return false;
                 }
+                return true;
             }
-        }
+            return true;
+        });
+    }
+
+    reset() {
+        super.reset();
+        this._onReset();
     }
 
     dispose() {

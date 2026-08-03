@@ -143,3 +143,40 @@ Run these checks against a clean committed worktree. Start server with `python3 
 - [ ] Karen characters use stylized human proportions
 - [ ] Karen hair is visible (asymmetric bob)
 - [ ] Different Karen archetypes have visual distinction
+
+## Ability Context Verification
+- [ ] Manager Karen ability executes WITHOUT "[CallManagerAbility] Missing playerStatusController" warning
+- [ ] HOA Karen ability executes WITHOUT "[ViolationNoticeAbility] Missing worldEffectSystem" warning
+- [ ] Retail Return ability executes WITHOUT "[ReturnWithoutReceiptAbility] Missing worldEffectSystem" warning
+- [ ] ESCALATED status appears on player HUD after Manager ability completes
+- [ ] Player movement speed visibly reduced while ESCALATED
+- [ ] ESCALATED expires and speed returns to normal
+- [ ] HOA VIOLATION world notice spawns in scene (visible as effect zone)
+- [ ] Walking into notice zone applies CITED status to player
+- [ ] CITED appears on HUD with countdown
+- [ ] Returned item world effect spawns at Retail Karen position
+- [ ] Walking into returned item zone applies RETURNED status to player
+- [ ] RETURNED appears on HUD with countdown
+- [ ] Console has zero "Missing playerStatusController" warnings during gameplay
+- [ ] Console has zero "Missing worldEffectSystem" warnings during gameplay
+
+## VFX Lifecycle Verification
+- [ ] Manager phone glow/pulse appears during telegraph
+- [ ] Manager phone glow disappears when ability executes
+- [ ] Manager red alert triangle fades out after ~800ms
+- [ ] HOA glow/sparks appear during telegraph
+- [ ] HOA flash plane appears and scales out during execute
+- [ ] Retail highlight/papers appear during telegraph
+- [ ] Retail drop plane appears and fades during execute
+- [ ] No VFX meshes remain attached after ability completes
+- [ ] Reset mid-telegraph clears all VFX immediately
+- [ ] Respawn mid-telegraph clears all VFX and resets pose
+- [ ] No "Cannot read properties of undefined" errors from expired VFX
+- [ ] No double-dispose errors on shared geometries
+
+## Camera Feedback Verification
+- [ ] Garden Gnome hit produces strongest camera impulse
+- [ ] Croc hit produces moderate camera impulse
+- [ ] Water Balloon hit produces barely-noticeable impulse
+- [ ] Camera impulse decays smoothly (no jitter or stutter)
+- [ ] No motion sickness from camera feedback
