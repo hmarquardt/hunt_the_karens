@@ -59,18 +59,6 @@ export class ManagerKaren extends Karen {
         this.mesh.add(paper);
     }
 
-    updateAbilities(delta) {
-        super.updateAbilities(delta);
-
-        if (this.abilityContext && this.abilities.length > 0) {
-            this.abilityTryCooldown -= delta;
-            if (this.abilityTryCooldown <= 0) {
-                this.abilityTryCooldown = this.abilityTryInterval;
-                this._tryUseAbility();
-            }
-        }
-    }
-
     attachCharacterAsset(characterInstance, animationClips) {
         super.attachCharacterAsset(characterInstance, animationClips);
         this._addManagerAccessories();
