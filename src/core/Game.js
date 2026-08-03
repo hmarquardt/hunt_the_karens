@@ -76,6 +76,7 @@ export class Game {
         this.collisionSystem.setVFXSystem(this.vfxSystem);
         this.collisionSystem.setWorldEffectSystem(this.worldEffectSystem);
         this.collisionSystem.setStatusDefs(STATUS_DEFS);
+        this.collisionSystem.setScene(this.sceneManager.scene);
         this.worldEffectSystem.setStatusDefs(STATUS_DEFS);
         this.collisionSystem.setOnEnemyDefeated((enemy) => {
             this._onEnemyDefeated(enemy);

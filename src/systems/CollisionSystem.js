@@ -4,13 +4,100 @@ import * as CONSTANTS from '../config/constants.js';
 const _scratchVec1 = new THREE.Vector3();
 const _scratchVec2 = new THREE.Vector3();
 const _scratchVec3 = new THREE.Vector3();
-const _scratchVec4 = new THREE.Vector3();
 
 const VEHICLE_HIT_MESSAGES = [
     'INSURANCE CLAIM PENDING',
     'THAT\'LL BUFF OUT',
     'PARKING LOT JUSTICE',
 ];
+
+const EPSILON = 1e-6;
+
+function _segmentAabbIntersect(
+    start,
+    end,
+    minX, minY, minZ,
+    maxX, maxY, maxZ,
+) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const dz = end.z - start.z;
+
+    let tMin = 0;
+    let tMax = 1;
+
+    let hitAxis = -1;
+    let hitSign = 0;
+
+    // X axis
+    if (Math.abs(dx) < EPSILON) {
+        if (start.x < minX || start.x > maxX) return { hit: false };
+    } else {
+        let t0 = (minX - start.x) / dx;
+        let t1 = (maxX - start.x) / dx;
+        if (t0 > t1) {
+            const tmp = t0; t0 = t1; t1 = tmp;
+        }
+        if (t0 > tMin) { tMin = t0; hitAxis = 0; hitSign = t0 === (minX - start.x) / dx ? -1 : 1; }
+        if (t1 < tMax) tMax = t1;
+        if (tMin > tMax) return { hit: false };
+    }
+
+    // Y axis
+    if (Math.abs(dy) < EPSILON) {
+        if (start.y < minY || start.y > maxY) return { hit: false };
+    } else {
+        let t0 = (minY - start.y) / dy;
+        let t1 = (maxY - start.y) / dy;
+        if (t0 > t1) {
+            const tmp = t0; t0 = t1; t1 = tmp;
+        }
+        if (t0 > tMin) { tMin = t0; hitAxis = 1; hitSign = t0 === (minY - start.y) / dy ? -1 : 1; }
+        if (t1 < tMax) tMax = t1;
+        if (tMin > tMax) return { hit: false };
+    }
+
+    // Z axis
+    if (Math.abs(dz) < EPSILON) {
+        if (start.z < minZ || start.z > maxZ) return { hit: false };
+    } else {
+        let t0 = (minZ - start.z) / dz;
+        let t1 = (maxZ - start.z) / dz;
+        if (t0 > t1) {
+            const tmp = t0; t0 = t1; t1 = tmp;
+        }
+        if (t0 > tMin) { tMin = t0; hitAxis = 2; hitSign = t0 === (minZ - start.z) / dz ? -1 : 1; }
+        if (t1 < tMax) tMax = t1;
+        if (tMin > tMax) return { hit: false };
+    }
+
+    if (tMin < 0 || tMin > 1) return { hit: false };
+
+    // Starting inside the box
+    if (tMin === 0) {
+        if (hitAxis === -1) {
+            // Fully inside, use direction to pick exit face
+            hitAxis = Math.abs(dx) > Math.abs(dz)
+                ? (dx > 0 ? 0 : 0)
+                : (dz > 0 ? 2 : 2);
+            hitSign = hitAxis === 0 ? Math.sign(dx) || 1 : Math.sign(dz) || 1;
+        }
+    }
+
+    const localNormal = _scratchVec1.set(0, 0, 0);
+    if (hitAxis === 0) localNormal.set(hitSign, 0, 0);
+    else if (hitAxis === 1) localNormal.set(0, hitSign, 0);
+    else localNormal.set(0, 0, hitSign);
+
+    const hitPoint = _scratchVec2.copy(start).addScaledVector(_scratchVec3.set(dx, dy, dz), tMin);
+
+    return {
+        hit: true,
+        t: tMin,
+        localPoint: hitPoint.clone(),
+        localNormal: localNormal.clone(),
+    };
+}
 
 export class CollisionSystem {
     constructor() {
@@ -28,10 +115,18 @@ export class CollisionSystem {
         this._onEnemyDefeated = null;
         this.vehicleColliders = [];
         this._lastVehicleHitMsg = 0;
+        this.scene = null;
+    }
+
+    setScene(scene) {
+        this.scene = scene;
     }
 
     registerVehicleColliders(colliders) {
         this.vehicleColliders = colliders || [];
+        if (this.debugEnabled) {
+            this._buildDebugHelpers();
+        }
     }
 
     clearVehicleColliders() {
@@ -66,20 +161,28 @@ export class CollisionSystem {
         this.statusDefs = defs;
     }
 
+    _clearDebugHelpers() {
+        for (const helper of this.debugHelpers) {
+            if (helper.parent) helper.parent.remove(helper);
+            if (helper.geometry) helper.geometry.dispose();
+            if (helper.material) helper.material.dispose();
+        }
+        this.debugHelpers = [];
+    }
+
     setDebug(enabled) {
+        if (enabled === this.debugEnabled) return;
         this.debugEnabled = enabled;
-        if (!enabled) {
-            for (const helper of this.debugHelpers) {
-                helper.parent?.remove(helper);
-            }
-            this.debugHelpers = [];
-        } else {
+        if (enabled) {
             this._buildDebugHelpers();
+        } else {
+            this._clearDebugHelpers();
         }
     }
 
     _buildDebugHelpers() {
-        this.debugHelpers = [];
+        this._clearDebugHelpers();
+        if (!this.scene) return;
         for (const col of this.vehicleColliders) {
             const hw = col.halfWidth;
             const hl = col.halfLength;
@@ -94,15 +197,8 @@ export class CollisionSystem {
             const mesh = new THREE.Mesh(geo, mat);
             mesh.position.set(col.position.x, h / 2, col.position.z);
             mesh.rotation.y = col.rotation;
+            this.scene.add(mesh);
             this.debugHelpers.push(mesh);
-        }
-    }
-
-    _updateDebugHelpers() {
-        for (const helper of this.debugHelpers) {
-            if (helper.parent && !helper.parent.visible) {
-                helper.visible = false;
-            }
         }
     }
 
@@ -171,10 +267,6 @@ export class CollisionSystem {
                 this._hitCooldowns.delete(key);
             }
         }
-
-        if (this.debugEnabled && this.debugHelpers.length > 0) {
-            this._updateDebugHelpers();
-        }
     }
 
     _sweptProjectileVehicleCollision(proj, collider) {
@@ -183,7 +275,6 @@ export class CollisionSystem {
 
         const segment = proj.getCollisionSegment();
         if (!segment) {
-            // Fallback: current position test
             return this._pointProjectileVehicleCollision(proj, collider);
         }
 
@@ -193,102 +284,58 @@ export class CollisionSystem {
         const h = col.height;
         const r = projBounds.radius;
 
-        // Expanded AABB in vehicle-local space
-        const min = _scratchVec1.set(-hw - r, -r, -hl - r);
-        const max = _scratchVec2.set(hw + r, h + r, hl + r);
+        // Scalar AABB bounds (expanded by projectile radius)
+        const minX = -hw - r;
+        const maxX = hw + r;
+        const minY = -r;
+        const maxY = h + r;
+        const minZ = -hl - r;
+        const maxZ = hl + r;
 
-        // Transform segment start/end into vehicle-local space
+        // Rotation
         const sinR = Math.sin(col.rotation);
         const cosR = Math.cos(col.rotation);
 
+        // Transform segment start into vehicle-local space
         const sx = segment.start.x - col.position.x;
         const sz = segment.start.z - col.position.z;
-        const localStart = _scratchVec3.set(
-            sx * cosR + sz * sinR,
-            segment.start.y,
-            -sx * sinR + sz * cosR
-        );
+        const localStartX = sx * cosR + sz * sinR;
+        const localStartY = segment.start.y;
+        const localStartZ = -sx * sinR + sz * cosR;
 
+        // Transform segment end into vehicle-local space
         const ex = segment.end.x - col.position.x;
         const ez = segment.end.z - col.position.z;
-        const localEnd = _scratchVec4.set(
-            ex * cosR + ez * sinR,
-            segment.end.y,
-            -ex * sinR + ez * cosR
+        const localEndX = ex * cosR + ez * sinR;
+        const localEndY = segment.end.y;
+        const localEndZ = -ex * sinR + ez * cosR;
+
+        const localStart = _scratchVec1.set(localStartX, localStartY, localStartZ);
+        const localEnd = _scratchVec2.set(localEndX, localEndY, localEndZ);
+
+        const result = _segmentAabbIntersect(
+            localStart,
+            localEnd,
+            minX, minY, minZ,
+            maxX, maxY, maxZ,
         );
 
-        // Slab intersection (segment vs AABB)
-        const dir = _scratchVec1.subVectors(localEnd, localStart);
-        const lenSq = dir.lengthSq();
-        if (lenSq < 0.0001) {
-            return this._pointProjectileVehicleCollision(proj, collider);
-        }
+        if (!result.hit) return { hit: false };
 
-        const invDir = _scratchVec2.set(
-            dir.x !== 0 ? 1 / dir.x : Number.MAX_VALUE,
-            dir.y !== 0 ? 1 / dir.y : Number.MAX_VALUE,
-            dir.z !== 0 ? 1 / dir.z : Number.MAX_VALUE,
+        // Transform hit point to world space
+        const lp = result.localPoint;
+        const hitWorld = _scratchVec3.set(
+            col.position.x + lp.x * cosR - lp.z * sinR,
+            lp.y,
+            col.position.z + lp.x * sinR + lp.z * cosR,
         );
 
-        let tMin = 0;
-        let tMax = 1;
-
-        for (let i = 0; i < 3; i++) {
-            const axis = i === 0 ? 'x' : i === 1 ? 'y' : 'z';
-            const minVal = min[axis];
-            const maxVal = max[axis];
-            const startVal = localStart[axis];
-            const invD = invDir[axis];
-
-            let t0 = (minVal - startVal) * invD;
-            let t1 = (maxVal - startVal) * invD;
-
-            if (invD < 0) {
-                const tmp = t0;
-                t0 = t1;
-                t1 = tmp;
-            }
-
-            if (t0 > tMin) tMin = t0;
-            if (t1 < tMax) tMax = t1;
-
-            if (tMin > tMax) return { hit: false };
-        }
-
-        if (tMin < 0 || tMin > 1) return { hit: false };
-
-        // Compute hit point in world space
-        const hitLocal = _scratchVec1.copy(localStart).addScaledVector(dir, tMin);
-        const hitWorld = _scratchVec2.set(
-            col.position.x + hitLocal.x * cosR - hitLocal.z * sinR,
-            hitLocal.y,
-            col.position.z + hitLocal.x * sinR + hitLocal.z * cosR
-        );
-
-        // Compute approximate surface normal
-        // Find which face was hit (closest to min/max boundary)
-        const distToMinX = Math.abs(hitLocal.x - min.x);
-        const distToMaxX = Math.abs(hitLocal.x - max.x);
-        const distToMinY = Math.abs(hitLocal.y - min.y);
-        const distToMaxY = Math.abs(hitLocal.y - max.y);
-        const distToMinZ = Math.abs(hitLocal.z - min.z);
-        const distToMaxZ = Math.abs(hitLocal.z - max.z);
-
-        const minDist = Math.min(distToMinX, distToMaxX, distToMinY, distToMaxY, distToMinZ, distToMaxZ);
-
-        let localNormal = _scratchVec3.set(0, 0, 0);
-        if (minDist === distToMinX) localNormal.set(-1, 0, 0);
-        else if (minDist === distToMaxX) localNormal.set(1, 0, 0);
-        else if (minDist === distToMinY) localNormal.set(0, -1, 0);
-        else if (minDist === distToMaxY) localNormal.set(0, 1, 0);
-        else if (minDist === distToMinZ) localNormal.set(0, 0, -1);
-        else localNormal.set(0, 0, 1);
-
-        // Transform normal to world space
-        const worldNormal = _scratchVec4.set(
-            localNormal.x * cosR - localNormal.z * sinR,
-            localNormal.y,
-            localNormal.x * sinR + localNormal.z * cosR
+        // Transform local normal to world space
+        const ln = result.localNormal;
+        const worldNormal = _scratchVec1.set(
+            ln.x * cosR - ln.z * sinR,
+            ln.y,
+            ln.x * sinR + ln.z * cosR,
         ).normalize();
 
         return {
@@ -308,7 +355,13 @@ export class CollisionSystem {
         const h = col.height;
         const r = projBounds.radius;
 
-        // Transform projectile center into vehicle-local space
+        const minX = -hw - r;
+        const maxX = hw + r;
+        const minY = -r;
+        const maxY = h + r;
+        const minZ = -hl - r;
+        const maxZ = hl + r;
+
         const dx = projBounds.center.x - col.position.x;
         const dz = projBounds.center.z - col.position.z;
         const cosR = Math.cos(col.rotation);
@@ -318,42 +371,51 @@ export class CollisionSystem {
         const localZ = -dx * sinR + dz * cosR;
         const localY = projBounds.center.y;
 
-        const inX = Math.abs(localX) <= hw + r;
-        const inZ = Math.abs(localZ) <= hl + r;
-        const inY = localY >= -r && localY <= h + r;
+        // Confirm inside expanded box
+        if (localX < minX || localX > maxX) return { hit: false };
+        if (localY < minY || localY > maxY) return { hit: false };
+        if (localZ < minZ || localZ > maxZ) return { hit: false };
 
-        if (!inX || !inZ || !inY) return { hit: false };
+        // Find nearest face using actual distances to boundaries
+        const distToMinX = localX - minX;
+        const distToMaxX = maxX - localX;
+        const distToMinY = localY - minY;
+        const distToMaxY = maxY - localY;
+        const distToMinZ = localZ - minZ;
+        const distToMaxZ = maxZ - localZ;
 
-        // Approximate hit point: project onto nearest face
-        const distToMinX = Math.abs(localX) - hw;
-        const distToMaxX = hw + r - Math.abs(localX);
-        const distToMinZ = Math.abs(localZ) - hl;
-        const distToMaxZ = hl + r - Math.abs(localZ);
+        let minDist = distToMinX;
+        let faceAxis = 0;
+        let faceSign = -1;
 
-        const minDist = Math.min(distToMinX, distToMaxX, distToMinZ, distToMaxZ);
+        if (distToMaxX < minDist) { minDist = distToMaxX; faceAxis = 0; faceSign = 1; }
+        if (distToMinY < minDist) { minDist = distToMinY; faceAxis = 1; faceSign = -1; }
+        if (distToMaxY < minDist) { minDist = distToMaxY; faceAxis = 1; faceSign = 1; }
+        if (distToMinZ < minDist) { minDist = distToMinZ; faceAxis = 2; faceSign = -1; }
+        if (distToMaxZ < minDist) { minDist = distToMaxZ; faceAxis = 2; faceSign = 1; }
 
-        let hitLocal = _scratchVec1.set(localX, localY, localZ);
-        if (minDist === distToMinX) hitLocal.x = Math.sign(localX) * (hw + r);
-        else if (minDist === distToMaxX) hitLocal.x = Math.sign(localX) * (hw + r);
-        else if (minDist === distToMinZ) hitLocal.z = Math.sign(localZ) * (hl + r);
-        else hitLocal.z = Math.sign(localZ) * (hl + r);
+        // Surface point: project onto the nearest face
+        const hitLocalX = faceAxis === 0 ? (faceSign < 0 ? minX : maxX) : localX;
+        const hitLocalY = faceAxis === 1 ? (faceSign < 0 ? minY : maxY) : localY;
+        const hitLocalZ = faceAxis === 2 ? (faceSign < 0 ? minZ : maxZ) : localZ;
 
-        const hitWorld = _scratchVec2.set(
-            col.position.x + hitLocal.x * cosR - hitLocal.z * sinR,
-            hitLocal.y,
-            col.position.z + hitLocal.x * sinR + hitLocal.z * cosR
+        const hitWorld = _scratchVec1.set(
+            col.position.x + hitLocalX * cosR - hitLocalZ * sinR,
+            hitLocalY,
+            col.position.z + hitLocalX * sinR + hitLocalZ * cosR,
         );
 
-        let localNormal = _scratchVec3.set(0, 0, 0);
-        if (minDist === distToMinX) localNormal.set(-Math.sign(localX), 0, 0);
-        else if (minDist === distToMaxX) localNormal.set(Math.sign(localX), 0, 0);
-        else if (minDist === distToMinZ) localNormal.set(0, 0, -Math.sign(localZ));
-        else localNormal.set(0, 0, Math.sign(localZ));
+        // Local normal
+        const localNormal = _scratchVec2.set(0, 0, 0);
+        if (faceAxis === 0) localNormal.set(faceSign, 0, 0);
+        else if (faceAxis === 1) localNormal.set(0, faceSign, 0);
+        else localNormal.set(0, 0, faceSign);
 
-        const worldNormal = _scratchVec4.set(
+        // World normal
+        const worldNormal = _scratchVec3.set(
             localNormal.x * cosR - localNormal.z * sinR,
             localNormal.y,
-            localNormal.x * sinR + localNormal.z * cosR
+            localNormal.x * sinR + localNormal.z * cosR,
         ).normalize();
 
         return {
@@ -552,9 +614,8 @@ export class CollisionSystem {
         this._hitCooldowns.clear();
         this.enemies = [];
         this.vehicleColliders = [];
-        for (const helper of this.debugHelpers) {
-            helper.parent?.remove(helper);
-        }
-        this.debugHelpers = [];
+        this._clearDebugHelpers();
     }
 }
+
+export { _segmentAabbIntersect };
