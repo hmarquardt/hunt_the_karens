@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as CONSTANTS from '../config/constants.js';
 import { PROJECTILE_MODELS } from '../config/weapons.js';
+import { createCrocProjectile, createWaterBalloon, createGardenGnome } from '../visual/WeaponModels.js';
 
 const _scratchGravity = new THREE.Vector3();
 const _scratchMovement = new THREE.Vector3();
@@ -64,27 +65,46 @@ class Projectile {
     _createMesh(modelType) {
         if (this.mesh) return;
 
-        const def = PROJECTILE_MODELS[modelType];
-        if (!def) return;
+        let weaponMesh;
 
-        const geometry = new THREE.BoxGeometry(
-            def.scale[0],
-            def.scale[1],
-            def.scale[2],
-            2, 1, 2
-        );
+        if (modelType === 'croc') {
+            weaponMesh = createCrocProjectile();
+            weaponMesh.scale.set(1.5, 1.5, 1.5);
+        } else if (modelType === 'waterBalloon') {
+            const result = createWaterBalloon();
+            weaponMesh = result.group;
+            weaponMesh.scale.set(1.2, 1.2, 1.2);
+        } else if (modelType === 'gardenGnome') {
+            const result = createGardenGnome();
+            weaponMesh = result.group;
+            weaponMesh.scale.set(1.2, 1.2, 1.2);
+        } else {
+            const def = PROJECTILE_MODELS[modelType];
+            if (!def) return;
 
-        const material = new THREE.MeshStandardMaterial({
-            color: def.color,
-            emissive: def.emissive,
-            emissiveIntensity: 0.15,
-            roughness: 0.6,
-            metalness: 0.1,
-        });
+            const geometry = new THREE.BoxGeometry(
+                def.scale[0],
+                def.scale[1],
+                def.scale[2],
+                2, 1, 2
+            );
 
-        this.mesh = new THREE.Mesh(geometry, material);
-        this.mesh.castShadow = true;
-        this.mesh.userData.isProjectile = true;
+            const material = new THREE.MeshStandardMaterial({
+                color: def.color,
+                emissive: def.emissive,
+                emissiveIntensity: 0.15,
+                roughness: 0.6,
+                metalness: 0.1,
+            });
+
+            weaponMesh = new THREE.Mesh(geometry, material);
+        }
+
+        if (weaponMesh) {
+            weaponMesh.castShadow = true;
+            weaponMesh.userData.isProjectile = true;
+            this.mesh = weaponMesh;
+        }
     }
 
     update(delta) {
