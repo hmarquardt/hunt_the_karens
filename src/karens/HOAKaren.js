@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Karen } from '../entities/Karen.js';
 import { KAREN_TYPES } from '../config/karenTypes.js';
+import { ViolationNoticeAbility } from '../entities/abilities/KarenAbilities.js';
 
 export class HOAKaren extends Karen {
     constructor(config = {}) {
@@ -13,6 +14,8 @@ export class HOAKaren extends Karen {
 
         super(merged);
         this.name = typeDef.name;
+
+        this.addAbility(new ViolationNoticeAbility(config.abilities?.violationNotice));
 
         this._addHOAAccessories();
     }
@@ -66,6 +69,18 @@ export class HOAKaren extends Karen {
         visor.rotation.x = -0.3;
         visor.castShadow = true;
         this.mesh.add(visor);
+    }
+
+    updateAbilities(delta) {
+        super.updateAbilities(delta);
+
+        if (this.abilityContext && this.abilities.length > 0) {
+            this.abilityTryCooldown -= delta;
+            if (this.abilityTryCooldown <= 0) {
+                this.abilityTryCooldown = this.abilityTryInterval;
+                this._tryUseAbility();
+            }
+        }
     }
 
     attachCharacterAsset(characterInstance, animationClips) {

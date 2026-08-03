@@ -24,19 +24,48 @@ Run these checks against a clean committed worktree. Start server with `python3 
 - [ ] HOA Karen patrols and confronts
 - [ ] Retail Return Karen patrols and confronts
 
-## Abilities
-- [ ] Manager Karen uses Call the Manager — ESCALATED appears on player HUD
-- [ ] HOA Karen uses Violation Notice — HOA VIOLATION sign appears
-- [ ] Retail Karen uses Return Without Receipt — returned item appears
-- [ ] World effects expire after configured duration
-- [ ] No ReferenceError in console
+## Abilities — Manager Karen (Call the Manager)
+- [ ] Manager Karen telegraphs ability ("I'm calling the MANAGER!")
+- [ ] Player receives ESCALATED status after telegraph completes
+- [ ] HUD shows ESCALATED badge with countdown
+- [ ] Player movement speed reduced while ESCALATED
+- [ ] ESCALATED expires after ~4 seconds
+- [ ] Manager Karen returns to confrontation/patrol after ability completes
+- [ ] Ability enters cooldown (~25s) before next use
+- [ ] No ability fires every frame — only once per activation
+
+## Abilities — HOA Karen (Violation Notice)
+- [ ] HOA Karen telegraphs ability ("HOA VIOLATION!")
+- [ ] HOA VIOLATION sign appears in world at place distance
+- [ ] Entering sign radius applies CITED status to player
+- [ ] HUD shows CITED badge with countdown
+- [ ] CITED applies movement modifier
+- [ ] Notice expires after configured duration (~12s)
+- [ ] CITED expires after ~5 seconds
+- [ ] F3 debug shows effect radius ring
+- [ ] Ability enters cooldown (~20s) before next use
+
+## Abilities — Retail Return Karen (Return Without Receipt)
+- [ ] Retail Karen telegraphs ability ("I don't need a receipt!")
+- [ ] Returned item appears at Karen position
+- [ ] Entering item radius applies RETURNED status to player
+- [ ] HUD shows RETURNED badge with countdown
+- [ ] Item expires after configured duration (~15s)
+- [ ] RETURNED expires after ~3 seconds
+- [ ] Ability enters cooldown (~30s) before next use
+
+## Ability Lifecycle
+- [ ] TELEGRAPHING: Karen shows dialogue, stops movement (SPECIAL state)
+- [ ] EXECUTING: Gameplay payload fires exactly once
+- [ ] COMPLETE: Karen returns to prior state, dialogue cleared
+- [ ] No ability fires multiple times per activation
+- [ ] No callback calls ability.use() recursively
+- [ ] Console shows no uncaught exceptions during ability execution
 
 ## Status Effects
 - [ ] Water Balloon applies SOAKED to Karen on hit
 - [ ] SOAKED lasts approximately 6 seconds
 - [ ] Karen movement visibly slows while SOAKED
-- [ ] Player enters HOA notice zone — CITED appears on player HUD
-- [ ] Player enters returned item zone — RETURNED appears on player HUD
 - [ ] All statuses expire on schedule
 - [ ] HUD status badges show remaining time
 
@@ -58,13 +87,15 @@ Run these checks against a clean committed worktree. Start server with `python3 
 - [ ] Respawned Karen has full health
 - [ ] No SOAKED or other temporary statuses on respawn
 - [ ] Speed returns to baseline
-- [ ] Ability cooldowns reset
+- [ ] Ability cooldowns reset — ability available after try interval
 - [ ] No stale dialogue or status state
+- [ ] Defeated + respawned archetype can use ability again
 
 ## Reset
 - [ ] Press R to reset during active effects
 - [ ] Press R during active statuses
 - [ ] Press R during mid-flight projectiles
+- [ ] Press R during Karen ability telegraph
 - [ ] Press R during Karen ability execution
 - [ ] After every reset:
   - [ ] No duplicate enemies
@@ -73,6 +104,14 @@ Run these checks against a clean committed worktree. Start server with `python3 
   - [ ] No duplicate weapon meshes
   - [ ] No console errors
   - [ ] Ammo restored to starting values
+  - [ ] All abilities reset to ready state
+
+## Console
+- [ ] Zero uncaught exceptions
+- [ ] No getter-only currentDialogue assignment error
+- [ ] No missing THREE error
+- [ ] No module 404 error
+- [ ] No ability re-entry error
 
 ## Debug Overlay
 - [ ] F3 toggles debug overlay

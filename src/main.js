@@ -23,21 +23,6 @@ const KAREN_REGISTRY = {
             karenType: 'retail_return',
             name: 'Retail Return Karen',
             scoreValue: 150,
-            abilities: {
-                callManager: {
-                    cooldown: 25000,
-                },
-                violationNotice: {
-                    cooldown: 20000,
-                    noticeDuration: 12,
-                    placeDistance: 6,
-                },
-                returnWithoutReceipt: {
-                    cooldown: 30000,
-                    itemDuration: 15,
-                    radius: 4,
-                },
-            },
         };
         const karen = new RetailReturnKaren(karenConfig);
         karen.setPlayerRef(game.playerController.player);

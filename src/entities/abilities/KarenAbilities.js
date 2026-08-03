@@ -10,29 +10,28 @@ export class CallManagerAbility extends KarenAbility {
             telegraphDuration: config?.telegraphDuration || 2000,
             executeDuration: config?.executeDuration || 1500,
         });
+
+        this.escalatedDuration = config?.escalatedDuration || 4;
+        this.selfBuffDuration = config?.selfBuffDuration || 6;
     }
 
-    use(karen, playerStatusController) {
-        if (!this.canUse()) return false;
+    setContext(karen, playerStatusController) {
         this.karen = karen;
         this.playerStatusController = playerStatusController;
+    }
 
-        this.state = 'telegraphing';
-        this.stateTimer = this.telegraphDuration;
-        this.remainingCooldown = this.cooldown;
-
-        if (this.onTelegraph) this.onTelegraph(this);
-        return true;
+    _onTelegraph() {
+        if (this.karen) {
+            this.karen.updateDialogue("I'm calling the MANAGER!");
+        }
     }
 
     _onExecute() {
-        if (this.onExecute) this.onExecute(this);
-
         if (this.playerStatusController) {
             this.playerStatusController.add({
                 id: 'escalated',
                 name: 'ESCALATED',
-                duration: 4,
+                duration: this.escalatedDuration,
                 modifiers: {
                     speedMultiplier: 0.75,
                 },
@@ -52,7 +51,9 @@ export class CallManagerAbility extends KarenAbility {
     }
 
     _onComplete() {
-        if (this.onComplete) this.onComplete(this);
+        if (this.karen) {
+            this.karen.updateDialogue('');
+        }
     }
 }
 
@@ -70,21 +71,18 @@ export class ViolationNoticeAbility extends KarenAbility {
         this.placeDistance = config?.placeDistance || 6;
     }
 
-    use(karen, worldEffectSystem) {
-        if (!this.canUse()) return false;
+    setContext(karen, worldEffectSystem) {
         this.karen = karen;
         this.worldEffectSystem = worldEffectSystem;
+    }
 
-        this.state = 'telegraphing';
-        this.stateTimer = this.telegraphDuration;
-        this.remainingCooldown = this.cooldown;
-
-        if (this.onTelegraph) this.onTelegraph(this);
-        return true;
+    _onTelegraph() {
+        if (this.karen) {
+            this.karen.updateDialogue("HOA VIOLATION!");
+        }
     }
 
     _onExecute() {
-        if (this.onExecute) this.onExecute(this);
         if (!this.karen || !this.worldEffectSystem) return;
 
         const dir = new THREE.Vector3();
@@ -105,7 +103,9 @@ export class ViolationNoticeAbility extends KarenAbility {
     }
 
     _onComplete() {
-        if (this.onComplete) this.onComplete(this);
+        if (this.karen) {
+            this.karen.updateDialogue('');
+        }
     }
 }
 
@@ -123,21 +123,18 @@ export class ReturnWithoutReceiptAbility extends KarenAbility {
         this.radius = config?.radius || 4;
     }
 
-    use(karen, worldEffectSystem) {
-        if (!this.canUse()) return false;
+    setContext(karen, worldEffectSystem) {
         this.karen = karen;
         this.worldEffectSystem = worldEffectSystem;
+    }
 
-        this.state = 'telegraphing';
-        this.stateTimer = this.telegraphDuration;
-        this.remainingCooldown = this.cooldown;
-
-        if (this.onTelegraph) this.onTelegraph(this);
-        return true;
+    _onTelegraph() {
+        if (this.karen) {
+            this.karen.updateDialogue("I don't need a receipt!");
+        }
     }
 
     _onExecute() {
-        if (this.onExecute) this.onExecute(this);
         if (!this.karen || !this.worldEffectSystem) return;
 
         const placePos = this.karen.position.clone();
@@ -156,6 +153,8 @@ export class ReturnWithoutReceiptAbility extends KarenAbility {
     }
 
     _onComplete() {
-        if (this.onComplete) this.onComplete(this);
+        if (this.karen) {
+            this.karen.updateDialogue('');
+        }
     }
 }

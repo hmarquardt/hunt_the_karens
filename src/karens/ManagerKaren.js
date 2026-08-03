@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Karen } from '../entities/Karen.js';
 import { KAREN_TYPES } from '../config/karenTypes.js';
+import { CallManagerAbility } from '../entities/abilities/KarenAbilities.js';
 
 export class ManagerKaren extends Karen {
     constructor(config = {}) {
@@ -13,6 +14,8 @@ export class ManagerKaren extends Karen {
 
         super(merged);
         this.name = typeDef.name;
+
+        this.addAbility(new CallManagerAbility(config.abilities?.callManager));
 
         this._addManagerAccessories();
     }
@@ -54,6 +57,18 @@ export class ManagerKaren extends Karen {
         const paper = new THREE.Mesh(paperGeo, paperMat);
         paper.position.set(-0.28, this.colliderHeight * 0.42, 0.11);
         this.mesh.add(paper);
+    }
+
+    updateAbilities(delta) {
+        super.updateAbilities(delta);
+
+        if (this.abilityContext && this.abilities.length > 0) {
+            this.abilityTryCooldown -= delta;
+            if (this.abilityTryCooldown <= 0) {
+                this.abilityTryCooldown = this.abilityTryInterval;
+                this._tryUseAbility();
+            }
+        }
     }
 
     attachCharacterAsset(characterInstance, animationClips) {

@@ -272,12 +272,19 @@ export class Game {
             this.hud.updateStatusEffects(this.playerController.statusEffects.getActiveEffects());
 
             const enemies = this.spawnDirector?.getEntities() || [];
+            const abilityContext = {
+                worldEffectSystem: this.worldEffectSystem,
+                playerStatusController: this.playerController.statusEffects,
+            };
             for (const enemy of enemies) {
                 if (enemy.updatePerception) {
                     enemy.updatePerception(delta, playerPos);
                 }
+                if (enemy.abilityContext !== abilityContext && enemy.setAbilityContext) {
+                    enemy.setAbilityContext(abilityContext);
+                }
                 if (enemy.updateAbilities) {
-                    enemy.updateAbilities(delta, this.worldEffectSystem, this.playerController.statusEffects);
+                    enemy.updateAbilities(delta);
                 }
                 enemy.update(delta);
             }

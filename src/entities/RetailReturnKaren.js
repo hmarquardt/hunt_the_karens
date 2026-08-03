@@ -1,104 +1,22 @@
-import * as THREE from 'three';
 import { Karen } from './Karen.js';
-import { CallManagerAbility, ViolationNoticeAbility, ReturnWithoutReceiptAbility } from './abilities/KarenAbilities.js';
+import { ReturnWithoutReceiptAbility } from './abilities/KarenAbilities.js';
 
 export class RetailReturnKaren extends Karen {
     constructor(config) {
         super(config);
 
-        this.abilities = [];
-        this.worldEffectSystem = null;
-        this._setupAbilities(config);
+        this.addAbility(new ReturnWithoutReceiptAbility(config.abilities?.returnWithoutReceipt));
     }
 
-    _setupAbilities(config) {
-        const abilities = config.abilities || {};
+    updateAbilities(delta) {
+        super.updateAbilities(delta);
 
-        if (abilities.callManager) {
-            const ability = new CallManagerAbility(abilities.callManager);
-            ability.karen = this;
-            ability.onTelegraph = () => this._onAbilityTelegraph(ability);
-            ability.onExecute = () => this._onAbilityExecute(ability);
-            ability.onComplete = () => this._onAbilityComplete(ability);
-            this.abilities.push(ability);
-        }
-
-        if (abilities.violationNotice) {
-            const ability = new ViolationNoticeAbility(abilities.violationNotice);
-            ability.karen = this;
-            ability.onTelegraph = () => this._onAbilityTelegraph(ability);
-            ability.onExecute = () => this._onAbilityExecute(ability);
-            ability.onComplete = () => this._onAbilityComplete(ability);
-            this.abilities.push(ability);
-        }
-
-        if (abilities.returnWithoutReceipt) {
-            const ability = new ReturnWithoutReceiptAbility(abilities.returnWithoutReceipt);
-            ability.karen = this;
-            ability.onTelegraph = () => this._onAbilityTelegraph(ability);
-            ability.onExecute = () => this._onAbilityExecute(ability);
-            ability.onComplete = () => this._onAbilityComplete(ability);
-            this.abilities.push(ability);
-        }
-    }
-
-    _onAbilityTelegraph(ability) {
-        this.currentDialogue = `I'm using ${ability.name}!`;
-        if (this.dialogue) {
-            this.dialogue.onUseAbility(ability.name);
-        }
-    }
-
-    _onAbilityExecute(ability) {
-        if (this.worldEffectSystem) {
-            ability.use(this, this.worldEffectSystem);
-        }
-    }
-
-    _onAbilityComplete(ability) {
-        this.currentDialogue = `${ability.name} complete!`;
-    }
-
-    updateAbilities(delta, worldEffectSystem, playerStatusController) {
-        this.worldEffectSystem = worldEffectSystem;
-        this.playerStatusController = playerStatusController;
-        for (const ability of this.abilities) {
-            ability.update(delta);
-
-            if (ability.canUse() && Math.random() < 0.001) {
-                this.tryUseAbility(worldEffectSystem, playerStatusController);
+        if (this.abilityContext && this.abilities.length > 0) {
+            this.abilityTryCooldown -= delta;
+            if (this.abilityTryCooldown <= 0) {
+                this.abilityTryCooldown = this.abilityTryInterval;
+                this._tryUseAbility();
             }
         }
-    }
-
-    tryUseAbility(worldEffectSystem, playerStatusController) {
-        for (const ability of this.abilities) {
-            if (ability.canUse()) {
-                this.worldEffectSystem = worldEffectSystem;
-                this.playerStatusController = playerStatusController;
-                if (ability.id === 'call_manager') {
-                    return ability.use(this, playerStatusController);
-                }
-                return ability.use(this, worldEffectSystem);
-            }
-        }
-        return false;
-    }
-
-    resetAbilities() {
-        for (const ability of this.abilities) {
-            ability.reset();
-        }
-    }
-
-    dispose() {
-        for (const ability of this.abilities) {
-            ability.dispose();
-        }
-        super.dispose();
-    }
-
-    get archetype() {
-        return 'retail_return';
     }
 }

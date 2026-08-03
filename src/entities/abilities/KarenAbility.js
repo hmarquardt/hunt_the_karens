@@ -24,9 +24,30 @@ export class KarenAbility {
         this.stateTimer = this.telegraphDuration;
         this.remainingCooldown = this.cooldown;
 
-        if (this.onTelegraph) this.onTelegraph(this);
+        this._startTelegraph();
         return true;
     }
+
+    _startTelegraph() {
+        this._onTelegraph();
+        if (this.onTelegraph) this.onTelegraph(this);
+    }
+
+    _startExecute() {
+        this._onExecute();
+        if (this.onExecute) this.onExecute(this);
+    }
+
+    _complete() {
+        this._onComplete();
+        if (this.onComplete) this.onComplete(this);
+    }
+
+    _onTelegraph() {}
+
+    _onExecute() {}
+
+    _onComplete() {}
 
     update(delta) {
         if (this.state === 'ready') {
@@ -43,10 +64,10 @@ export class KarenAbility {
             if (this.state === 'telegraphing') {
                 this.state = 'executing';
                 this.stateTimer = this.executeDuration;
-                if (this.onExecute) this.onExecute(this);
+                this._startExecute();
             } else if (this.state === 'executing') {
                 this.state = 'ready';
-                if (this.onComplete) this.onComplete(this);
+                this._complete();
             }
         }
     }

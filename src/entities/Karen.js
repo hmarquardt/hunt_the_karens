@@ -41,11 +41,14 @@ export class Karen extends NPC {
         this.dialogueController = new DialogueController(this.colliderHeight);
         this.statusEffects = new StatusEffectController();
 
+        this.abilities = [];
+        this.abilityContext = null;
+        this.abilityTryCooldown = 0;
+        this.abilityTryInterval = 8;
+
         this.confrontation = {
             targetDistance: config.confrontationDistance || 4,
             confrontationTimer: 0,
-            specialAbilityCooldown: 0,
-            specialAbilityInterval: (config.specialAbilityInterval || 8000) / 1000,
         };
 
         this.onImpact = null;
@@ -288,11 +291,6 @@ export class Karen extends NPC {
         this.defeatVisibilityRemaining = this.ragdollDuration * 0.001 * 0.7;
     }
 
-    onSpecialAbility() {
-        this.stateMachine.transitionTo(KarenState.SPECIAL);
-        this.specialRemaining = 2;
-    }
-
     update(delta) {
         this.stateMachine.update(delta);
         this.statusEffects.update(delta);
@@ -311,15 +309,9 @@ export class Karen extends NPC {
             }
         }
 
-        if (this.specialRemaining > 0) {
-            this.specialRemaining -= delta;
-            if (this.specialRemaining <= 0 && this.stateMachine.is(KarenState.SPECIAL)) {
-                if (this.perception.playerDetected) {
-                    this.stateMachine.transitionTo(KarenState.CONFRONT);
-                } else {
-                    this.stateMachine.transitionTo(KarenState.PATROL);
-                }
-            }
+        const hasActiveAbility = this._updateAbilitiesState(delta);
+        if (hasActiveAbility && this.stateMachine.is(KarenState.SPECIAL)) {
+            return;
         }
 
         if (!this.isAlive) {
@@ -333,7 +325,7 @@ export class Karen extends NPC {
             return;
         }
 
-        if (this.stateMachine.is(KarenState.REACT) || this.stateMachine.is(KarenState.SPECIAL)) {
+        if (this.stateMachine.is(KarenState.REACT)) {
             return;
         }
 
@@ -481,10 +473,10 @@ export class Karen extends NPC {
             this.mesh.position.copy(this.position);
         }
 
-        this.confrontation.specialAbilityCooldown -= delta;
-        if (this.confrontation.specialAbilityCooldown <= 0) {
-            this.confrontation.specialAbilityCooldown = this.confrontation.specialAbilityInterval;
-            this.onSpecialAbility();
+        this.abilityTryCooldown -= delta;
+        if (this.abilityTryCooldown <= 0 && this.abilities.length > 0) {
+            this.abilityTryCooldown = this.abilityTryInterval;
+            this._tryUseAbility();
         }
     }
 
@@ -512,19 +504,84 @@ export class Karen extends NPC {
         };
     }
 
+    addAbility(ability) {
+        ability.karen = this;
+        this.abilities.push(ability);
+    }
+
+    setAbilityContext(context) {
+        this.abilityContext = context;
+        for (const ability of this.abilities) {
+            ability.setContext?.(this, context);
+        }
+    }
+
+    updateAbilities(delta) {
+        for (const ability of this.abilities) {
+            ability.update(delta);
+        }
+    }
+
+    _updateAbilitiesState(delta) {
+        for (const ability of this.abilities) {
+            if (ability.state === 'telegraphing' || ability.state === 'executing') {
+                if (!this.stateMachine.is(KarenState.SPECIAL)) {
+                    this.stateMachine.transitionTo(KarenState.SPECIAL);
+                }
+                return true;
+            }
+        }
+
+        if (this.stateMachine.is(KarenState.SPECIAL)) {
+            for (const ability of this.abilities) {
+                if (ability.state !== 'ready') return true;
+            }
+            if (this.perception.playerDetected) {
+                this.stateMachine.transitionTo(KarenState.CONFRONT);
+            } else {
+                this.stateMachine.transitionTo(KarenState.PATROL);
+            }
+        }
+        return false;
+    }
+
+    _tryUseAbility() {
+        if (!this.isAlive || this.stateMachine.is(KarenState.STUNNED)) return;
+        if (this.stateMachine.is(KarenState.DEFEATED) || this.stateMachine.is(KarenState.RESPAWNING)) return;
+
+        for (const ability of this.abilities) {
+            if (ability.canUse()) {
+                ability.use();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    resetAbilities() {
+        for (const ability of this.abilities) {
+            ability.reset();
+        }
+        this.abilityTryCooldown = 0;
+    }
+
+    disposeAbilities() {
+        for (const ability of this.abilities) {
+            ability.dispose();
+        }
+        this.abilities = [];
+    }
+
     resetForRespawn() {
         this.statusEffects.clear();
         this.reactionRemaining = 0;
         this.defeatVisibilityRemaining = 0;
-        this.specialRemaining = 0;
-        this.confrontation.specialAbilityCooldown = this.confrontation.specialAbilityInterval;
         this.dialogueTimer = 0;
         this.angleChangeTimer = 0;
+        this.abilityTryCooldown = 0;
         if (this.mesh) {
             this.mesh.visible = true;
         }
-        if (this.resetAbilities) {
-            this.resetAbilities();
-        }
+        this.resetAbilities();
     }
 }
