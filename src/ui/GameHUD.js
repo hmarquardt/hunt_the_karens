@@ -116,7 +116,7 @@ export class GameHUD {
         this._overlay.appendChild(this._debugOverlay);
         this._overlay.appendChild(scoreDisplay);
         this._overlay.appendChild(versionFooter);
-        this._overlay.appendChild(diagnosticStrip);
+        this._overlay.appendChild(this._diagnosticStrip);
 
         document.body.appendChild(this._overlay);
     }

@@ -6,6 +6,6 @@
  */
 export const BUILD_INFO = {
     version: '0.9.2',
-    commit: '10d42b6',
+    commit: 'bd39388',
     label: 'Pre-Playtest UX + Diagnostics',
 };
