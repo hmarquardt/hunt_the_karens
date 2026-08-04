@@ -71,7 +71,8 @@ export class Game {
         this.playerController = new FPSController(
             this.renderer.camera,
             this.inputManager,
-            this.sceneManager
+            this.sceneManager,
+            this.renderer.renderer.domElement
         );
         this.playerController.init();
 
@@ -514,6 +515,16 @@ export class Game {
                 levelFlow: () => this.levelFlow.getDebugInfo(),
                 composure: this._composure,
                 runStats: this.runStats,
+                pointerLock: () => ({
+                    element: document.pointerLockElement?.tagName + (document.pointerLockElement?.id ? '#' + document.pointerLockElement.id : ''),
+                    expectedElement: this.renderer.renderer.domElement?.tagName,
+                    controlsLocked: this.playerController?.controls?.isLocked ?? false,
+                    paused: this.isPaused,
+                }),
+                playerPosition: () => {
+                    const p = this.playerController?.player?.position;
+                    return p ? { x: p.x, y: p.y, z: p.z } : null;
+                },
             };
         }
     };
@@ -641,7 +652,7 @@ export class Game {
     }
 
     _onPointerLockChange() {
-        this.isPaused = document.pointerLockElement !== this.renderer.renderer.domElement;
+        this.isPaused = !this.playerController.controls?.isLocked;
         if (!this.isPaused) {
             this.hud.showHUD?.();
         } else {

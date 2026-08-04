@@ -5,15 +5,15 @@ import { StatusEffectController } from '../entities/components/StatusEffectContr
 import * as CONSTANTS from '../config/constants.js';
 
 export class FPSController {
-    constructor(camera, inputManager, sceneManager) {
+    constructor(camera, inputManager, sceneManager, pointerLockElement) {
         this.camera = camera;
         this.inputManager = inputManager;
         this.sceneManager = sceneManager;
+        this.pointerLockElement = pointerLockElement;
         this.player = new Player();
         this.controls = null;
         this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
         this.moveDirection = new THREE.Vector3();
-        this._isLocked = false;
         this.speedMultiplier = 1.0;
         this.statusEffects = new StatusEffectController();
 
@@ -24,27 +24,17 @@ export class FPSController {
     }
 
     init() {
-        this.controls = new PointerLockControls(this.camera, document.body);
+        this.controls = new PointerLockControls(this.camera, this.pointerLockElement);
 
         document.addEventListener('pointerlockerror', this._onPointerLockError);
 
         document.addEventListener('click', () => {
-            if (!this._isLocked) {
+            if (!this.controls.isLocked) {
                 this.controls.lock();
             }
         });
 
-        this._syncLockState();
-
         this.reset(new THREE.Vector3(0, 0, 5));
-    }
-
-    _syncLockState() {
-        this._isLocked = this.controls.isLocked;
-
-        document.addEventListener('pointerlockchange', () => {
-            this._isLocked = this.controls.isLocked;
-        });
     }
 
     reset(position) {
@@ -57,7 +47,7 @@ export class FPSController {
     }
 
     update(delta) {
-        if (!this._isLocked) return;
+        if (!this.controls?.isLocked) return;
 
         this.statusEffects.update(delta);
         this.speedMultiplier = this.statusEffects.getModifierValue('speedMultiplier', 1);
