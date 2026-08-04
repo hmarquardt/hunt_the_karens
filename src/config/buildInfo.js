@@ -6,6 +6,6 @@
  */
 export const BUILD_INFO = {
     version: '0.9.2',
-    commit: 'e5ebda7',
+    commit: 'b0ce600',
     label: 'Gameplay Feel + Play-Space Correction',
 };
