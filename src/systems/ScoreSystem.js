@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import * as CONSTANTS from '../config/constants.js';
 
 export class ScoreSystem {
