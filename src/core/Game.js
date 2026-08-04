@@ -514,7 +514,7 @@ export class Game {
                 this.hud.updateObjective(t.objective);
                 break;
             case 'weapon_unlock':
-                this._unlockWeapon(t.type, t.text, t.weaponName, t.key);
+                this._unlockWeapon(t.weaponType, t.text, t.weaponName, t.key);
                 break;
             case 'wave_complete_bonus':
                 this.scoreSystem.registerHit(t.amount);

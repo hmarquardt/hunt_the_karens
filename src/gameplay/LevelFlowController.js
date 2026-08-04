@@ -45,6 +45,7 @@ export class LevelFlowController {
             this._weaponsUnlocked[unlock.type] = true;
             this._transitions.push({
                 type: 'weapon_unlock',
+                weaponType: unlock.type,
                 text: unlock.text,
                 weaponName: unlock.weaponName,
                 key: unlock.key,

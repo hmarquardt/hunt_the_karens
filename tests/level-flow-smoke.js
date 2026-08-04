@@ -199,6 +199,12 @@ console.log('\n=== Milestone 8 Level Flow Tests ===\n');
     ctrl.update(0.1);
     const unlocksAfter = ctrl.getWeaponUnlocks();
     assert(unlocksAfter.waterBalloon === true, 'waterBalloon unlocked after WAVE_1');
+
+    // Verify transition has weaponType property
+    const ts = ctrl.popTransitions();
+    const unlock = ts.find(t => t.type === 'weapon_unlock');
+    assert(unlock !== undefined, 'weapon_unlock transition exists');
+    assert(unlock?.weaponType === 'waterBalloon', 'weaponType is waterBalloon');
 }
 
 // 17. Composure recovery during breather
