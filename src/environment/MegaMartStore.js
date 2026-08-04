@@ -18,6 +18,7 @@ export class MegaMartStore {
         this._buildParapet();
         this._buildEntranceProjection();
         this._buildGlassVestibule();
+        this._buildVestibuleBarrier();
         this._buildAutomaticDoors();
         this._buildWindowPanels();
         this._buildSignage();
@@ -177,6 +178,72 @@ export class MegaMartStore {
         );
         topGlass.position.set(0, 3, -9.5);
         this.group.add(topGlass);
+    }
+
+    _buildVestibuleBarrier() {
+        const frameMat = this.materials.get('metalDark');
+
+        // Closed interior gate at the back of the vestibule — blocks access to unfinished store interior.
+        // Looks like a roll-down security gate / after-hours barrier.
+        const gateHeight = 2.6;
+        const gateWidth = 4.8;
+        const gateZ = -10.8;
+
+        // Gate frame
+        const frame = new THREE.Mesh(
+            new THREE.BoxGeometry(gateWidth + 0.2, gateHeight + 0.2, 0.08),
+            frameMat
+        );
+        frame.position.set(0, gateHeight / 2, gateZ);
+        frame.castShadow = true;
+        this.group.add(frame);
+
+        // Gate slats (horizontal bars suggesting a roll-down gate)
+        const slatMat = this.materials.get('metalGalvanized');
+        const slatCount = 12;
+        for (let i = 0; i < slatCount; i++) {
+            const y = 0.15 + (i / slatCount) * (gateHeight - 0.15);
+            const slat = new THREE.Mesh(
+                new THREE.BoxGeometry(gateWidth - 0.1, 0.06, 0.06),
+                slatMat
+            );
+            slat.position.set(0, y, gateZ + 0.02);
+            this.group.add(slat);
+        }
+
+        // "STORE CLOSED" sign
+        const closedCanvas = document.createElement('canvas');
+        closedCanvas.width = 256;
+        closedCanvas.height = 64;
+        const ctx = closedCanvas.getContext('2d');
+        ctx.fillStyle = '#cc2200';
+        ctx.fillRect(0, 0, 256, 64);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('STORE ENTRANCE', 128, 28);
+        ctx.font = '16px sans-serif';
+        ctx.fillText('COMING SOON', 128, 50);
+        const closedTexture = new THREE.CanvasTexture(closedCanvas);
+        closedTexture.colorSpace = THREE.SRGBColorSpace;
+        const closedSign = new THREE.Mesh(
+            new THREE.PlaneGeometry(2, 0.5),
+            new THREE.MeshStandardMaterial({
+                map: closedTexture,
+                roughness: 0.6,
+            })
+        );
+        closedSign.position.set(0, gateHeight + 0.3, gateZ + 0.06);
+        this.group.add(closedSign);
+
+        // Collision body for the gate
+        const gateCollider = new THREE.Mesh(
+            new THREE.BoxGeometry(gateWidth, gateHeight, 0.15),
+            new THREE.MeshStandardMaterial({ visible: false })
+        );
+        gateCollider.position.set(0, gateHeight / 2, gateZ);
+        gateCollider.castShadow = false;
+        this.group.add(gateCollider);
     }
 
     _buildAutomaticDoors() {

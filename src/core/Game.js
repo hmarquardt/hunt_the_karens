@@ -401,6 +401,7 @@ export class Game {
             const playerPos = this.playerController.player.position;
             this.playerController.update(delta);
             this._handleWeaponFire();
+            this._checkOutOfBounds();
             this.weaponManager.update(delta);
             this.projectileSystem.update(delta);
             this.vfxSystem.update(delta);
@@ -581,6 +582,9 @@ export class Game {
                 break;
             case 'breather_start':
                 this.hud.updateObjective(t.objective);
+                if (t.incident && t.subtitle) {
+                    this.hud.showAnnouncement(t.incident, t.subtitle, 3000);
+                }
                 break;
             case 'victory':
                 this.runStats.victory = true;
@@ -617,6 +621,20 @@ export class Game {
         const fired = weapon.fire();
         if (fired) {
             this.runStats.recordThrow(weaponId);
+        }
+    }
+
+    _checkOutOfBounds() {
+        const pos = this.playerController.player.position;
+        const PLAYABLE_X = 22;
+        const PLAYABLE_Z_MIN = -14;
+        const PLAYABLE_Z_MAX = 17;
+
+        if (Math.abs(pos.x) > PLAYABLE_X || pos.z < PLAYABLE_Z_MIN || pos.z > PLAYABLE_Z_MAX) {
+            const spawnPos = this.level?.spawnPoint || new THREE.Vector3(0, 1.6, 12);
+            pos.copy(spawnPos);
+            this.playerController.player.velocity.set(0, 0, 0);
+            this.hud.showHint('THAT AREA IS NOT ZONED FOR CUSTOMERS', 2500);
         }
     }
 

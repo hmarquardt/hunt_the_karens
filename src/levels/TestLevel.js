@@ -107,6 +107,9 @@ export class TestLevel extends Level {
         // Place signs
         this._placeSigns(sceneManager);
 
+        // Build perimeter boundaries
+        this._buildPerimeterBoundaries(sceneManager);
+
         // Build horizon
         this._buildHorizon(sceneManager);
 
@@ -670,6 +673,65 @@ export class TestLevel extends Level {
         const arrowSign = this._signFactory.createDirectionalArrow(-12, 10, 'left', 'PARKING →');
         this._tracker.trackObject(arrowSign);
         sceneManager.add(arrowSign, false);
+    }
+
+    _buildPerimeterBoundaries(sceneManager) {
+        // Invisible collision walls at the edges of the playable parking lot.
+        // These prevent the player from wandering into the forest/dressing geometry.
+        // Kept invisible because at these distances the player should naturally turn around.
+        const boundaryMat = new THREE.MeshStandardMaterial({ visible: false });
+
+        // Playable area: roughly the parking lot footprint
+        // x: -22 to 22, z: -20 to 18
+        const boundaries = [
+            // North (behind store) — solid wall just behind the store
+            { x: 0, z: -18, w: 44, h: 6, d: 0.3 },
+            // East side
+            { x: 22, z: -2, w: 0.3, h: 6, d: 36 },
+            // West side
+            { x: -22, z: -2, w: 0.3, h: 6, d: 36 },
+            // South (front of parking lot, near road)
+            { x: 0, z: 18, w: 44, h: 6, d: 0.3 },
+        ];
+
+        for (const b of boundaries) {
+            const wall = new THREE.Mesh(
+                new THREE.BoxGeometry(b.w, b.h, b.d),
+                boundaryMat
+            );
+            wall.position.set(b.x, b.h / 2, b.z);
+            wall.castShadow = false;
+            sceneManager.add(wall, true);
+        }
+
+        // Retaining wall along the north side (visible, makes the boundary feel intentional)
+        const retainingMat = this._tracker.createMaterial(THREE.MeshStandardMaterial, {
+            color: 0x888888,
+            roughness: 0.9,
+            metalness: 0,
+        });
+        const retainingWall = new THREE.Mesh(
+            new THREE.BoxGeometry(30, 1.5, 0.4),
+            retainingMat
+        );
+        retainingWall.position.set(0, 0.75, -15);
+        retainingWall.castShadow = true;
+        retainingWall.receiveShadow = true;
+        sceneManager.add(retainingWall, true);
+
+        // Landscaping berm behind retaining wall (soft visual barrier)
+        const bermMat = this._tracker.createMaterial(THREE.MeshStandardMaterial, {
+            color: 0x4a5a3a,
+            roughness: 0.95,
+            metalness: 0,
+        });
+        const berm = new THREE.Mesh(
+            new THREE.BoxGeometry(28, 2.5, 4),
+            bermMat
+        );
+        berm.position.set(0, 0.5, -17);
+        berm.castShadow = true;
+        sceneManager.add(berm, false);
     }
 
     _buildHorizon(sceneManager) {

@@ -209,7 +209,14 @@ export class LevelFlowController {
         } else {
             this.phase = nextPhase;
             this.phaseTime = 0;
-            this._transitions.push({ type: 'breather_start', objective: this._getBreatherObjective() });
+
+            const isFirstBreather = nextPhase === PHASES.BREATHER_1;
+            this._transitions.push({
+                type: 'breather_start',
+                objective: this._getBreatherObjective(),
+                incident: isFirstBreather ? 'INCIDENT RESOLVED' : undefined,
+                subtitle: isFirstBreather ? 'Unfortunately, she called the HOA.' : undefined,
+            });
         }
     }
 
