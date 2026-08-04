@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/GLTFLoader.js';
-import { SkeletonUtils } from 'three/addons/SkeletonUtils.js';
+import { clone as skeletonClone } from 'three/addons/SkeletonUtils.js';
 
 export class CharacterAsset {
     constructor() {
@@ -47,7 +47,7 @@ export class CharacterAsset {
     cloneInstance() {
         if (!this.rootScene) return null;
 
-        const cloned = SkeletonUtils.clone(this.rootScene);
+        const cloned = skeletonClone(this.rootScene);
 
         cloned.traverse((child) => {
             if (child.isMesh) {

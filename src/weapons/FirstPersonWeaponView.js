@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { createCrocView, createWaterBalloon, createGardenGnome } from './WeaponModels.js';
-import { createFirstPersonHand } from './FirstPersonHand.js';
+import { createCrocView, createWaterBalloon, createGardenGnome } from '../visual/WeaponModels.js';
+import { createFirstPersonHand } from '../visual/FirstPersonHand.js';
 
 export class FirstPersonWeaponView {
     constructor(camera, config) {

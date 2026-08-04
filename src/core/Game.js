@@ -124,15 +124,6 @@ export class Game {
         // Build HUD DOM
         this.hud.build();
 
-        // Debug inspection hook for browser testing
-        window.__HTK_DEBUG__ = {
-            weaponUnlocks: () => this.levelFlow?.getWeaponUnlocks(),
-            score: () => this.scoreSystem,
-            composure: () => this._composure,
-            phase: () => this.levelFlow?.getPhase(),
-            stats: () => this.runStats,
-        };
-
         document.addEventListener('keydown', this._onKeyDown);
         document.addEventListener('pointerlockchange', this._onPointerLockChange);
         document.addEventListener('click', this._initAudioOnInteraction, { once: true });
@@ -242,6 +233,10 @@ export class Game {
         setTimeout(() => {
             this.runStats.startTimer();
         }, LEVEL_CONFIG.introDuration * 1000);
+    }
+
+    setLastFactoryFn(factoryFn) {
+        this._lastFactoryFn = factoryFn;
     }
 
     _setupWeaponTracking() {
@@ -562,12 +557,9 @@ export class Game {
     }
 
     _unlockWeapon(type, announcementText, weaponName, key) {
-        // Enable weapon slot
-        const slotMap = { waterBalloon: 1, gardenGnome: 2 };
-        const slot = slotMap[type];
-        if (slot !== undefined) {
-            this.weaponManager._weaponSlots[slot] = type;
-        }
+        // Weapon is already registered in WeaponManager (all weapons registered at startup).
+        // Unlock state is tracked by LevelFlowController.getWeaponUnlocks() which gates input handling.
+        // No action needed here — the unlock announcement and hint are shown below.
 
         this.hud.showAnnouncement(announcementText, weaponName, 3000);
         this.hud.showHint(`PRESS ${key} — ${weaponName.toUpperCase()}`, 4000);

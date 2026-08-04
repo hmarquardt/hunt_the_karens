@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { NPC } from './NPC.js';
-import { KAREN_TYPES } from '../config/karenTypes.js';
+import { KAREN_TYPES, KAREN_BASE } from '../config/karenTypes.js';
 import { KarenStateMachine, KarenState } from '../animation/KarenStateMachine.js';
 import { DialogueController } from './components/DialogueController.js';
 import { KarenPerception } from './components/KarenPerception.js';
@@ -104,8 +104,8 @@ export class Karen extends NPC {
     _buildHair(visualConfig) {
         const hairStyle = visualConfig.hairStyle || 'bob';
         const hairBuilder = this._getHairBuilder(hairStyle);
-        if (hairBuilder) {
-            this.buildHair(hairBuilder);
+        if (hairBuilder && this.proceduralHuman) {
+            this.proceduralHuman.addHair(hairBuilder);
         }
     }
 

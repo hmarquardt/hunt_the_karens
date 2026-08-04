@@ -5,6 +5,7 @@
  */
 
 import { PHASES, LEVEL_CONFIG } from './Level1Config.js';
+export { PHASES, LEVEL_CONFIG } from './Level1Config.js';
 
 export class LevelFlowController {
     constructor() {
