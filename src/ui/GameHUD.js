@@ -192,7 +192,7 @@ export class GameHUD {
     }
 
     showHitMarker() {
-        // Handled by parent
+        // compatibility stub — visual implementation deferred
     }
 
     updateWeapon(name, ammo) {
@@ -201,11 +201,13 @@ export class GameHUD {
     }
 
     updateWeaponSlots(activeIndex) {
-        // Weapon slot indicators handled by intro/result or omitted for simplicity
+        // compatibility stub — visual implementation deferred
+        // Weapon availability is communicated via unlock announcements + hints
     }
 
     updateStatusEffects(effects) {
-        // Status effects (SLOWED, STUNNED) visual indicators — omitted for Milestone 8
+        // compatibility stub — visual implementation deferred
+        // Status effects (ESCALATED, SOAKED, CITED) affect gameplay but have no HUD icons yet
     }
 
     toggleDebug(enabled) {

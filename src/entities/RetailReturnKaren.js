@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Karen } from './Karen.js';
 import { KAREN_TYPES } from '../config/karenTypes.js';
 import { ReturnWithoutReceiptAbility } from './abilities/KarenAbilities.js';
+import { ABILITY_CONFIG } from '../gameplay/Level1Config.js';
 
 export class RetailReturnKaren extends Karen {
     constructor(config) {
@@ -15,7 +16,10 @@ export class RetailReturnKaren extends Karen {
         super(merged);
         this.name = typeDef.name;
 
-        this.addAbility(new ReturnWithoutReceiptAbility(config.abilities?.returnWithoutReceipt));
+        this.addAbility(new ReturnWithoutReceiptAbility({
+            cooldown: ABILITY_CONFIG.returnWithoutReceipt.cooldown,
+            ...config.abilities?.returnWithoutReceipt,
+        }));
 
         this._addRetailReturnAccessories();
     }

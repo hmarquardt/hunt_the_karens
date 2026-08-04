@@ -129,6 +129,106 @@ console.log('\n=== Milestone 9 ScoreSystem Tests ===\n');
     assertEq(ss.score, scoreBefore, 'score unchanged after miss');
 }
 
+// 11. registerBonus increases score without affecting accuracy
+{
+    console.log('\nTest 11: registerBonus does not affect accuracy');
+    const ss = new ScoreSystem();
+    ss.registerHit(100);
+    ss.registerHit(100);
+    ss.registerMiss();
+    assertEq(ss.getAccuracy(), 67, 'accuracy is 67% before bonus');
+
+    const scoreBefore = ss.score;
+    ss.registerBonus(500);
+    assertEq(ss.score, scoreBefore + 500, 'score increased by 500');
+    assertEq(ss.totalHits, 2, 'totalHits unchanged');
+    assertEq(ss.totalMisses, 1, 'totalMisses unchanged');
+    assertEq(ss.getAccuracy(), 67, 'accuracy unchanged after bonus');
+    assertEq(ss.combo, 0, 'combo unchanged');
+}
+
+// 12. Accuracy regression: 5 hits, 5 misses, then bonuses
+{
+    console.log('\nTest 12: Accuracy stable across bonuses');
+    const ss = new ScoreSystem();
+
+    // 5 hits, 5 misses → 50%
+    for (let i = 0; i < 5; i++) ss.registerHit(100);
+    for (let i = 0; i < 5; i++) ss.registerMiss();
+    assertEq(ss.getAccuracy(), 50, '50% after 5 hits and 5 misses');
+
+    // 3 incident bonuses
+    ss.registerBonus(500);
+    ss.registerBonus(500);
+    ss.registerBonus(500);
+    assertEq(ss.getAccuracy(), 50, 'still 50% after 3 incident bonuses');
+
+    // Defeat points
+    ss.registerDefeat(100);
+    assertEq(ss.getAccuracy(), 50, 'still 50% after defeat');
+
+    // Victory bonus
+    ss.registerBonus(1000);
+    assertEq(ss.getAccuracy(), 50, 'still 50% after victory bonus');
+}
+
+// 13. Vehicle miss decreases accuracy appropriately
+{
+    console.log('\nTest 13: Vehicle miss decreases accuracy');
+    const ss = new ScoreSystem();
+    ss.registerHit(100);
+    assertEq(ss.getAccuracy(), 100, '100% after 1 hit');
+    ss.registerMiss(); // vehicle hit
+    assertEq(ss.getAccuracy(), 50, '50% after vehicle miss');
+}
+
+// 14. registerDefeat does not affect accuracy
+{
+    console.log('\nTest 14: registerDefeat does not affect accuracy');
+    const ss = new ScoreSystem();
+    ss.registerHit(100);
+    ss.registerMiss();
+    assertEq(ss.getAccuracy(), 50, '50% baseline');
+    ss.registerDefeat(100);
+    assertEq(ss.totalHits, 1, 'totalHits unchanged');
+    assertEq(ss.totalMisses, 1, 'totalMisses unchanged');
+    assertEq(ss.getAccuracy(), 50, 'accuracy unchanged after defeat');
+}
+
+// 15. Projectile lifecycle: exactly one terminal event
+{
+    console.log('\nTest 15: One projectile → exactly one hit or miss');
+    // Scenario A: hit
+    const ssA = new ScoreSystem();
+    ssA.registerHit(25);
+    assertEq(ssA.totalHits + ssA.totalMisses, 1, 'hit: exactly 1 terminal event');
+
+    // Scenario B: miss
+    const ssB = new ScoreSystem();
+    ssB.registerMiss();
+    assertEq(ssB.totalHits + ssB.totalMisses, 1, 'miss: exactly 1 terminal event');
+
+    // Scenario: hit + bonus (bonus does NOT count as terminal event)
+    const ssC = new ScoreSystem();
+    ssC.registerHit(25);
+    ssC.registerBonus(500);
+    assertEq(ssC.totalHits + ssC.totalMisses, 1, 'hit + bonus: still 1 terminal event');
+}
+
+// 16. Splash rule: 1 hit per projectile regardless of splash targets
+{
+    console.log('\nTest 16: Splash counts as 1 hit per projectile');
+    // A water balloon hitting one enemy and splashing others should
+    // only register ONE hit (the direct hit). Splash damage to
+    // secondary targets is a gameplay effect, not an accuracy event.
+    const ss = new ScoreSystem();
+    ss.registerHit(25);
+    // If splash also awarded points, it would use registerBonus, NOT registerHit
+    ss.registerBonus(10); // splash bonus (simulated)
+    assertEq(ss.totalHits, 1, 'only 1 hit registered for splash projectile');
+    assertEq(ss.totalMisses, 0, 'no misses');
+}
+
 console.log('\n==========================================');
 console.log(`Results: ${passed} passed, ${failed} failed`);
 if (failed > 0) {

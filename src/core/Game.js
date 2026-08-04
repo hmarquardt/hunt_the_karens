@@ -95,8 +95,13 @@ export class Game {
             worldEffectSystem: this.worldEffectSystem,
             playerStatusController: this.playerController.statusEffects,
             drainComposure: (amount) => {
+                if (this.levelFlow.isTerminal()) return;
                 this._composure = Math.max(0, this._composure - amount);
                 this.hud.updateComposure(Math.round(this._composure));
+                if (this._composure <= 0 && !this.levelFlow.isTerminal()) {
+                    this.levelFlow.triggerDefeat();
+                    this.runStats.stopTimer();
+                }
             },
         };
 
@@ -118,6 +123,15 @@ export class Game {
 
         // Build HUD DOM
         this.hud.build();
+
+        // Debug inspection hook for browser testing
+        window.__HTK_DEBUG__ = {
+            weaponUnlocks: () => this.levelFlow?.getWeaponUnlocks(),
+            score: () => this.scoreSystem,
+            composure: () => this._composure,
+            phase: () => this.levelFlow?.getPhase(),
+            stats: () => this.runStats,
+        };
 
         document.addEventListener('keydown', this._onKeyDown);
         document.addEventListener('pointerlockchange', this._onPointerLockChange);
@@ -299,13 +313,15 @@ export class Game {
     _showResultScreen() {
         this.runStats.stopTimer();
         this.runStats.composureRemaining = Math.max(0, this._composure);
-        this.runStats.score = this.scoreSystem.getScore();
+        this.runStats.score = this.scoreSystem.score;
         this.runStats.victory = this.levelFlow.getPhase() === PHASES.VICTORY;
         this.runStats.incidentsResolved = this.levelFlow.getPhase() === PHASES.VICTORY ? 4 : 0;
 
-        // Composure bonus
+        // Composure bonus (score only, does not affect accuracy)
         if (this.runStats.victory && this._composure > 0) {
-            this.runStats.addScore(Math.round(this._composure * 10));
+            const bonus = Math.round(this._composure * 10);
+            this.scoreSystem.registerBonus(bonus);
+            this.runStats.score = this.scoreSystem.score;
         }
 
         // Sync throw counts from projectile system
@@ -413,8 +429,8 @@ export class Game {
                 }
             }
 
-            // Composure drain during waves
-            if (this.levelFlow.isWaveActive() && this._composure > 0) {
+            // Composure drain during waves (never after outcome)
+            if (this.levelFlow.isWaveActive() && !this.levelFlow.isTerminal() && this._composure > 0) {
                 const enemies = this.spawnDirector?.getEntities() || [];
                 const aliveEnemies = enemies.filter(e => e.isAlive);
                 if (aliveEnemies.length > 0) {
@@ -517,7 +533,7 @@ export class Game {
                 this._unlockWeapon(t.weaponType, t.text, t.weaponName, t.key);
                 break;
             case 'wave_complete_bonus':
-                this.scoreSystem.registerHit(t.amount);
+                this.scoreSystem.registerBonus(t.amount);
                 this.hud.showAnnouncement('INCIDENT RESOLVED', `+${t.amount}`, 2000);
                 this.runStats.incidentsResolved++;
                 break;

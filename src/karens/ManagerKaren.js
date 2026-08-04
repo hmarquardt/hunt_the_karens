@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Karen } from '../entities/Karen.js';
 import { KAREN_TYPES } from '../config/karenTypes.js';
 import { CallManagerAbility } from '../entities/abilities/KarenAbilities.js';
+import { ABILITY_CONFIG } from '../gameplay/Level1Config.js';
 
 export class ManagerKaren extends Karen {
     constructor(config = {}) {
@@ -15,7 +16,10 @@ export class ManagerKaren extends Karen {
         super(merged);
         this.name = typeDef.name;
 
-        this.addAbility(new CallManagerAbility(config.abilities?.callManager));
+        this.addAbility(new CallManagerAbility({
+            cooldown: ABILITY_CONFIG.callManager.cooldown,
+            ...config.abilities?.callManager,
+        }));
 
         this._addManagerAccessories();
     }

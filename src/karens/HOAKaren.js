@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Karen } from '../entities/Karen.js';
 import { KAREN_TYPES } from '../config/karenTypes.js';
 import { ViolationNoticeAbility } from '../entities/abilities/KarenAbilities.js';
+import { ABILITY_CONFIG } from '../gameplay/Level1Config.js';
 
 export class HOAKaren extends Karen {
     constructor(config = {}) {
@@ -15,7 +16,10 @@ export class HOAKaren extends Karen {
         super(merged);
         this.name = typeDef.name;
 
-        this.addAbility(new ViolationNoticeAbility(config.abilities?.violationNotice));
+        this.addAbility(new ViolationNoticeAbility({
+            cooldown: ABILITY_CONFIG.violationNotice.cooldown,
+            ...config.abilities?.violationNotice,
+        }));
 
         this._addHOAAccessories();
     }

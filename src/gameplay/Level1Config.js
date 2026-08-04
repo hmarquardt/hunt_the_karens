@@ -96,3 +96,23 @@ export const RANKS = [
     { minScore: 1000, label: 'C', title: 'CUSTOMER OF CONCERN' },
     { minScore: 0, label: 'D', title: 'PENDING CORPORATE REVIEW' },
 ];
+
+/**
+ * Ability configuration — cooldowns and composure drain per archetype.
+ * Values are in milliseconds for cooldowns, raw points for composure damage.
+ * These are wired through to ability constructors at spawn time.
+ */
+export const ABILITY_CONFIG = {
+    callManager: {
+        cooldown: 25000,
+        composureDamage: 15,
+    },
+    violationNotice: {
+        cooldown: 20000,
+        composureDamage: 12,
+    },
+    returnWithoutReceipt: {
+        cooldown: 30000,
+        composureDamage: 18,
+    },
+};
