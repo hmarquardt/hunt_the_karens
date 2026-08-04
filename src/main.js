@@ -3,6 +3,7 @@ import { TestLevel } from './levels/TestLevel.js';
 import { ManagerKaren } from './karens/ManagerKaren.js';
 import { HOAKaren } from './karens/HOAKaren.js';
 import { RetailReturnKaren } from './entities/RetailReturnKaren.js';
+import { BUILD_INFO } from './config/buildInfo.js';
 
 const KAREN_REGISTRY = {
     manager: (config) => {
@@ -56,6 +57,28 @@ async function main() {
     game.setLastFactoryFn(createKarenFactory);
 
     game.start();
+
+    // Version footer
+    const versionEl = document.getElementById('version-footer');
+    if (versionEl) {
+        versionEl.textContent = `HTK v${BUILD_INFO.version} \u2014 ${BUILD_INFO.commit} \u2014 ${BUILD_INFO.label}`;
+    }
+
+    // Theme toggle
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        themeToggle.innerHTML = currentTheme === 'light' ? '&#x2600; Theme' : '&#x1F312; Theme';
+
+        themeToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            const next = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('htk-theme', next);
+            themeToggle.innerHTML = next === 'light' ? '&#x2600; Theme' : '&#x1F312; Theme';
+        });
+    }
 
     console.log('[Main] Game running. Click to capture pointer and begin.');
 }

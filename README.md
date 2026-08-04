@@ -98,6 +98,23 @@ docs/
     asset-pipeline.md       Asset creation and import guide
 ```
 
+## Build Info
+
+Because this project has no bundler or build pipeline, version metadata
+is tracked manually in `src/config/buildInfo.js`.
+
+```js
+export const BUILD_INFO = {
+    version: '0.9.2',
+    commit: '10d42b6',
+    label: 'Pre-Playtest UX + Diagnostics',
+};
+```
+
+**Convention**: update this file at each coding-agent checkpoint that
+includes meaningful changes. The version and short commit hash are
+displayed in the game's footer for visual verification.
+
 ## Vendored Dependencies
 
 | Library | Version | Source |

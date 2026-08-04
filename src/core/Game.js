@@ -481,6 +481,7 @@ export class Game {
             const info = this.renderer.renderer.info;
             const envStats = this.level?.getStats?.() || {};
             const flowDebug = this.levelFlow.getDebugInfo();
+            const runtime = window.__HTK_DEBUG__?.runtime() || {};
             this.hud.updateDebug({
                 fps: this.currentFPS,
                 frameTime: delta * 1000,
@@ -504,6 +505,7 @@ export class Game {
                 composure: Math.round(this._composure),
                 runTime: this.runStats.totalTime > 0 ? this.runStats.totalTime.toFixed(1) : this.runStats.runTime.toFixed(1),
             });
+            this.hud.updateDiagnosticStrip(runtime);
         }
 
         if (typeof window !== 'undefined') {
@@ -515,6 +517,29 @@ export class Game {
                 levelFlow: () => this.levelFlow.getDebugInfo(),
                 composure: this._composure,
                 runStats: this.runStats,
+                runtime: () => {
+                    const p = this.playerController?.player?.position;
+                    const inputManager = this.playerController?.input;
+                    const keys = [];
+                    if (inputManager) {
+                        if (inputManager.moveForward) keys.push('W');
+                        if (inputManager.moveBackward) keys.push('S');
+                        if (inputManager.moveLeft) keys.push('A');
+                        if (inputManager.moveRight) keys.push('D');
+                    }
+                    const enemies = this.spawnDirector?.getEntities() || [];
+                    const alive = enemies.filter(e => e.isAlive).length;
+                    return {
+                        phase: this.levelFlow.getPhase(),
+                        locked: this.playerController?.controls?.isLocked ?? false,
+                        paused: this.isPaused,
+                        fps: this.currentFPS,
+                        enemies: `${alive}/${enemies.length}`,
+                        pos: p ? { x: p.x, z: p.z } : null,
+                        inputKeys: keys.join('') || 'none',
+                        shots: this.projectileSystem?.getTotalShots() ?? 0,
+                    };
+                },
                 pointerLock: () => ({
                     element: document.pointerLockElement?.tagName + (document.pointerLockElement?.id ? '#' + document.pointerLockElement.id : ''),
                     expectedElement: this.renderer.renderer.domElement?.tagName,

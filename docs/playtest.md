@@ -1,10 +1,29 @@
 # Browser Playtest Checklist
 
 ## Setup
+
 ```bash
 python3 -m http.server 8000
 # Open http://localhost:8000 in browser
 ```
+
+## Cache Busting
+
+Stale browser assets are the #1 cause of "game doesn't work" reports.
+
+**Before every playtest session:**
+
+1. **Chrome DevTools** → Network tab → check "Disable cache"
+2. **Or** hard reload: `Cmd+Shift+R` (Mac) / `Ctrl+Shift+R` (Windows)
+3. **Restart the server** from the repository root:
+   ```bash
+   # Kill old server first (Ctrl+C or kill %1)
+   python3 -m http.server 8000
+   ```
+
+**Verify you're on the right build:**
+- The footer should show the current commit hash (e.g., `10d42b6`)
+- If the hash doesn't match `git log --oneline -1`, you have a cache issue
 
 ## Full Victory Run
 

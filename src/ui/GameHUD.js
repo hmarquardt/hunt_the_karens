@@ -2,6 +2,8 @@
  * HUD overlay for objectives, phase announcements, composure, and result screen.
  */
 
+import { BUILD_INFO } from '../config/buildInfo.js';
+
 export class GameHUD {
     constructor(scoreSystem) {
         this.scoreSystem = scoreSystem;
@@ -20,12 +22,17 @@ export class GameHUD {
         this._lowComposureWarning = null;
         this._lowComposureWarned = false;
         this._introOverlay = null;
+        this._diagnosticStrip = null;
     }
 
     build() {
         this._overlay = document.createElement('div');
         this._overlay.id = 'game-hud';
         this._overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:100;font-family:monospace;';
+
+        // Blocker reference (from index.html)
+        this._blocker = document.getElementById('blocker');
+        this._hudRoot = document.getElementById('hud');
 
         // Objective area — top left
         this._objectiveLabel = document.createElement('div');
@@ -91,6 +98,15 @@ export class GameHUD {
         scoreDisplay.style.cssText = 'position:absolute;top:20px;left:50%;transform:translateX(-50%);color:#ffffff;font-size:18px;font-weight:bold;';
         scoreDisplay.textContent = '0';
 
+        // Version footer — bottom right
+        const versionFooter = document.createElement('div');
+        versionFooter.id = 'version-footer';
+        versionFooter.textContent = `HTK ${BUILD_INFO.version} (${BUILD_INFO.commit}) — ${BUILD_INFO.label}`;
+
+        // Diagnostic strip — top edge
+        this._diagnosticStrip = document.createElement('div');
+        this._diagnosticStrip.id = 'diagnostic-strip';
+
         this._overlay.appendChild(this._objectiveLabel);
         this._overlay.appendChild(this._objectiveText);
         this._overlay.appendChild(this._composureContainer);
@@ -99,6 +115,8 @@ export class GameHUD {
         this._overlay.appendChild(this._lowComposureWarning);
         this._overlay.appendChild(this._debugOverlay);
         this._overlay.appendChild(scoreDisplay);
+        this._overlay.appendChild(versionFooter);
+        this._overlay.appendChild(diagnosticStrip);
 
         document.body.appendChild(this._overlay);
     }
@@ -214,6 +232,17 @@ export class GameHUD {
         if (this._debugOverlay) {
             this._debugOverlay.style.opacity = enabled ? '1' : '0';
         }
+        this.showDiagnosticStrip(enabled);
+    }
+
+    showHUD() {
+        if (this._blocker) this._blocker.classList.add('hidden');
+        if (this._hudRoot) this._hudRoot.classList.remove('hidden');
+    }
+
+    showBlocker() {
+        if (this._blocker) this._blocker.classList.remove('hidden');
+        if (this._hudRoot) this._hudRoot.classList.add('hidden');
     }
 
     updateDebug(data) {
@@ -243,6 +272,31 @@ export class GameHUD {
         if (data.runTime !== undefined) lines.push(`Run Time: ${data.runTime}s`);
 
         this._debugOverlay.innerHTML = lines.map(l => `<p style="margin:0">${l}</p>`).join('');
+    }
+
+    updateDiagnosticStrip(data) {
+        if (!this._diagnosticStrip) return;
+        const items = [];
+        if (data.phase !== undefined) items.push(`<span class="diag-item"><span class="diag-label">PHASE</span><span class="diag-value">${data.phase}</span></span>`);
+        if (data.locked !== undefined) {
+            const cls = data.locked ? 'ok' : 'error';
+            items.push(`<span class="diag-item ${cls}"><span class="diag-label">LOCK</span><span class="diag-value">${data.locked ? 'YES' : 'NO'}</span></span>`);
+        }
+        if (data.paused !== undefined) {
+            const cls = data.paused ? 'warn' : 'ok';
+            items.push(`<span class="diag-item ${cls}"><span class="diag-label">PAUSED</span><span class="diag-value">${data.paused ? 'YES' : 'NO'}</span></span>`);
+        }
+        if (data.fps !== undefined) items.push(`<span class="diag-item"><span class="diag-label">FPS</span><span class="diag-value">${data.fps}</span></span>`);
+        if (data.enemies !== undefined) items.push(`<span class="diag-item"><span class="diag-label">ENEMIES</span><span class="diag-value">${data.enemies}</span></span>`);
+        if (data.pos !== undefined) items.push(`<span class="diag-item"><span class="diag-label">POS</span><span class="diag-value">${data.pos.x.toFixed(1)},${data.pos.z.toFixed(1)}</span></span>`);
+        if (data.inputKeys !== undefined) items.push(`<span class="diag-item"><span class="diag-label">INPUT</span><span class="diag-value">${data.inputKeys || 'none'}</span></span>`);
+        if (data.shots !== undefined) items.push(`<span class="diag-item"><span class="diag-label">SHOTS</span><span class="diag-value">${data.shots}</span></span>`);
+        this._diagnosticStrip.innerHTML = items.join('');
+    }
+
+    showDiagnosticStrip(enabled) {
+        if (!this._diagnosticStrip) return;
+        this._diagnosticStrip.classList.toggle('visible', enabled);
     }
 
     // Result screen

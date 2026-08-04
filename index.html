@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hunt the Karens</title>
     <link rel="stylesheet" href="css/game.css">
+    <script>
+        // Apply theme before any rendering to avoid flash
+        (function() {
+            const stored = localStorage.getItem('htk-theme');
+            if (stored) {
+                document.documentElement.setAttribute('data-theme', stored);
+            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
 </head>
 <body>
     <div id="blocker">
@@ -22,6 +33,9 @@
             <p class="start-prompt">Click anywhere to begin</p>
         </div>
     </div>
+
+    <button id="theme-toggle" title="Toggle theme">&#x1F312; Theme</button>
+    <div id="version-footer"></div>
 
     <div id="hud" class="hidden">
         <div id="crosshair"></div>

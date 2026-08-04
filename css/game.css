@@ -1,3 +1,48 @@
+/* ========================================
+   Theme Variables — Light/Dark Support
+   ======================================== */
+
+:root {
+    /* Default: dark theme */
+    --ui-bg: #000;
+    --ui-panel: rgba(0, 0, 0, 0.85);
+    --ui-panel-solid: #1a1a1a;
+    --ui-text: #fff;
+    --ui-text-secondary: #888;
+    --ui-muted: #666;
+    --ui-border: rgba(255, 255, 255, 0.1);
+    --ui-accent: #feca57;
+    --ui-accent-secondary: #ff6b6b;
+    --ui-danger: #ff4444;
+    --ui-success: #44ff88;
+    --ui-overlay-bg: rgba(0, 0, 0, 0.85);
+    --ui-overlay-blur: blur(4px);
+    --ui-text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+    --ui-footer-bg: rgba(0, 0, 0, 0.6);
+    --ui-diag-bg: rgba(0, 0, 0, 0.7);
+    --ui-diag-text: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="light"] {
+    --ui-bg: #f5f0eb;
+    --ui-panel: rgba(255, 255, 255, 0.92);
+    --ui-panel-solid: #fff;
+    --ui-text: #1a1a1a;
+    --ui-text-secondary: #555;
+    --ui-muted: #888;
+    --ui-border: rgba(0, 0, 0, 0.12);
+    --ui-accent: #d4940a;
+    --ui-accent-secondary: #cc4444;
+    --ui-danger: #cc3333;
+    --ui-success: #22aa55;
+    --ui-overlay-bg: rgba(255, 255, 255, 0.92);
+    --ui-overlay-blur: blur(4px);
+    --ui-text-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+    --ui-footer-bg: rgba(255, 255, 255, 0.8);
+    --ui-diag-bg: rgba(255, 255, 255, 0.85);
+    --ui-diag-text: rgba(0, 0, 0, 0.8);
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -8,7 +53,7 @@ html, body {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #000;
+    background: var(--ui-bg);
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
@@ -19,23 +64,22 @@ canvas {
 #blocker {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.85);
+    background: var(--ui-overlay-bg);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100;
-    backdrop-filter: blur(4px);
+    backdrop-filter: var(--ui-overlay-blur);
     transition: opacity 0.3s ease;
 }
 
 #blocker.hidden {
-    opacity: 0;
-    pointer-events: none;
+    display: none;
 }
 
 #instructions {
     text-align: center;
-    color: #fff;
+    color: var(--ui-text);
     max-width: 480px;
     padding: 40px;
 }
@@ -46,7 +90,7 @@ canvas {
     letter-spacing: 0.15em;
     margin-bottom: 8px;
     text-transform: uppercase;
-    background: linear-gradient(135deg, #ff6b6b, #feca57, #ff6b6b);
+    background: linear-gradient(135deg, var(--ui-accent-secondary), var(--ui-accent), var(--ui-accent-secondary));
     background-size: 200% 200%;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -61,7 +105,7 @@ canvas {
 
 .tagline {
     font-size: 0.95rem;
-    color: #888;
+    color: var(--ui-text-secondary);
     margin-bottom: 32px;
     font-style: italic;
 }
@@ -76,17 +120,17 @@ canvas {
 }
 
 .controls p {
-    color: #ccc;
+    color: var(--ui-text);
 }
 
 .controls strong {
-    color: #feca57;
+    color: var(--ui-accent);
     min-width: 100px;
     display: inline-block;
 }
 
 .start-prompt {
-    color: #feca57;
+    color: var(--ui-accent);
     font-size: 1.1rem;
     animation: pulse 2s ease-in-out infinite;
 }
@@ -153,14 +197,14 @@ canvas {
     display: flex;
     flex-direction: column;
     align-items: center;
-    color: #fff;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+    color: var(--ui-text);
+    text-shadow: var(--ui-text-shadow);
 }
 
 .label {
     font-size: 0.65rem;
     letter-spacing: 0.2em;
-    color: #888;
+    color: var(--ui-text-secondary);
     text-transform: uppercase;
 }
 
@@ -177,8 +221,8 @@ canvas {
 #combo-value {
     font-size: 1.2rem;
     font-weight: 600;
-    color: #feca57;
-    text-shadow: 0 0 10px rgba(254, 202, 87, 0.5);
+    color: var(--ui-accent);
+    text-shadow: 0 0 10px var(--ui-accent);
     transition: transform 0.15s ease;
 }
 
@@ -197,7 +241,7 @@ canvas {
 
 #ammo-value {
     font-size: 1rem;
-    color: #feca57;
+    color: var(--ui-accent);
 }
 
 #hud-bottom {
@@ -211,8 +255,8 @@ canvas {
 #hit-feedback {
     font-size: 1.1rem;
     font-weight: 600;
-    color: #ff6b6b;
-    text-shadow: 0 2px 10px rgba(255, 107, 107, 0.5);
+    color: var(--ui-accent-secondary);
+    text-shadow: 0 2px 10px var(--ui-accent-secondary);
     opacity: 0;
     transition: opacity 0.2s ease;
 }
@@ -225,8 +269,8 @@ canvas {
     position: fixed;
     top: 20px;
     right: 20px;
-    background: rgba(0, 0, 0, 0.8);
-    color: #0f0;
+    background: var(--ui-panel);
+    color: var(--ui-success);
     font-family: 'Courier New', monospace;
     font-size: 0.75rem;
     padding: 12px;
@@ -242,8 +286,8 @@ canvas {
 
 #debug-content h3 {
     margin-bottom: 8px;
-    color: #0f0;
-    border-bottom: 1px solid #333;
+    color: var(--ui-success);
+    border-bottom: 1px solid var(--ui-border);
     padding-bottom: 4px;
 }
 
@@ -309,29 +353,29 @@ canvas {
     flex-direction: column;
     align-items: center;
     padding: 8px 16px;
-    background: rgba(0, 0, 0, 0.6);
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    background: var(--ui-panel);
+    border: 2px solid var(--ui-border);
     border-radius: 8px;
-    color: #fff;
+    color: var(--ui-text);
     font-size: 0.75rem;
     transition: all 0.2s ease;
     min-width: 80px;
 }
 
 .weapon-slot.active {
-    border-color: #feca57;
+    border-color: var(--ui-accent);
     background: rgba(254, 202, 87, 0.2);
-    box-shadow: 0 0 12px rgba(254, 202, 87, 0.4);
+    box-shadow: 0 0 12px var(--ui-accent);
 }
 
 .weapon-slot .slot-key {
     font-size: 0.6rem;
-    color: #888;
+    color: var(--ui-text-secondary);
     margin-bottom: 4px;
 }
 
 .weapon-slot.active .slot-key {
-    color: #feca57;
+    color: var(--ui-accent);
 }
 
 .weapon-slot .slot-name {
@@ -356,9 +400,9 @@ canvas {
     align-items: center;
     gap: 6px;
     padding: 6px 12px;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--ui-panel);
     border-radius: 4px;
-    color: #fff;
+    color: var(--ui-text);
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -379,7 +423,7 @@ canvas {
 }
 
 .status-effect.escalated {
-    border-left: 3px solid #ff4444;
+    border-left: 3px solid var(--ui-danger);
 }
 
 .status-effect.returned {
@@ -393,4 +437,114 @@ canvas {
 @keyframes statusEffectPulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.7; }
+}
+
+/* ========================================
+   Version Footer
+   ======================================== */
+
+#version-footer {
+    position: fixed;
+    bottom: 8px;
+    right: 12px;
+    font-size: 0.6rem;
+    color: var(--ui-text-secondary);
+    z-index: 150;
+    pointer-events: none;
+    opacity: 0.6;
+    font-family: 'Courier New', monospace;
+}
+
+/* ========================================
+   Runtime Diagnostics Strip
+   ======================================== */
+
+#diagnostic-strip {
+    position: fixed;
+    top: 4px;
+    left: 8px;
+    right: 8px;
+    font-size: 0.6rem;
+    color: var(--ui-diag-text);
+    z-index: 150;
+    pointer-events: none;
+    background: var(--ui-diag-bg);
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    display: none;
+    flex-wrap: wrap;
+    gap: 0 16px;
+}
+
+#diagnostic-strip.visible {
+    display: flex;
+}
+
+.diag-item {
+    white-space: nowrap;
+}
+
+.diag-item .diag-label {
+    color: var(--ui-muted);
+    margin-right: 4px;
+}
+
+.diag-item.warn .diag-value {
+    color: var(--ui-accent);
+}
+
+.diag-item.error .diag-value {
+    color: var(--ui-danger);
+}
+
+.diag-item.ok .diag-value {
+    color: var(--ui-success);
+}
+
+/* ========================================
+   Theme Toggle Button
+   ======================================== */
+
+#theme-toggle {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 200;
+    background: var(--ui-panel);
+    border: 1px solid var(--ui-border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: var(--ui-text);
+    font-size: 0.75rem;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: background 0.2s ease;
+}
+
+#theme-toggle:hover {
+    background: var(--ui-panel-solid);
+}
+
+/* ========================================
+   JS Error Indicator
+   ======================================== */
+
+#js-error-indicator {
+    position: fixed;
+    bottom: 8px;
+    left: 12px;
+    font-size: 0.6rem;
+    color: var(--ui-danger);
+    z-index: 150;
+    pointer-events: none;
+    background: var(--ui-diag-bg);
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    display: none;
+}
+
+#js-error-indicator.visible {
+    display: block;
 }
