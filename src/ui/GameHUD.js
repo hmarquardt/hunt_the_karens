@@ -63,7 +63,7 @@ export class GameHUD {
 
         // Announcement overlay — center
         this._announcement = document.createElement('div');
-        this._announcement.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;opacity:0;transition:opacity 0.4s;';
+        this._announcement.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;opacity:0;transition:opacity 0.4s;background:rgba(0,0,0,0.7);padding:20px 40px;border-radius:8px;';
 
         const annIncident = document.createElement('div');
         annIncident.id = 'ann-incident';
@@ -291,6 +291,11 @@ export class GameHUD {
         if (data.pos !== undefined) items.push(`<span class="diag-item"><span class="diag-label">POS</span><span class="diag-value">${data.pos.x.toFixed(1)},${data.pos.z.toFixed(1)}</span></span>`);
         if (data.inputKeys !== undefined) items.push(`<span class="diag-item"><span class="diag-label">INPUT</span><span class="diag-value">${data.inputKeys || 'none'}</span></span>`);
         if (data.shots !== undefined) items.push(`<span class="diag-item"><span class="diag-label">SHOTS</span><span class="diag-value">${data.shots}</span></span>`);
+        if (data.weapon !== undefined) {
+            const cls = data.weaponUnlocked ? 'ok' : 'warn';
+            items.push(`<span class="diag-item ${cls}"><span class="diag-label">WEAPON</span><span class="diag-value">${data.weapon}${data.weaponUnlocked ? '' : ' (locked)'}</span></span>`);
+        }
+        if (data.throws !== undefined) items.push(`<span class="diag-item"><span class="diag-label">THROWS</span><span class="diag-value">${data.throws}</span></span>`);
         this._diagnosticStrip.innerHTML = items.join('');
     }
 

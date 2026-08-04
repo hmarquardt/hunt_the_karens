@@ -400,6 +400,7 @@ export class Game {
         if (!this.isPaused) {
             const playerPos = this.playerController.player.position;
             this.playerController.update(delta);
+            this._handleWeaponFire();
             this.weaponManager.update(delta);
             this.projectileSystem.update(delta);
             this.vfxSystem.update(delta);
@@ -529,6 +530,10 @@ export class Game {
                     }
                     const enemies = this.spawnDirector?.getEntities() || [];
                     const alive = enemies.filter(e => e.isAlive).length;
+                    const activeWeapon = this.weaponManager?.getActiveWeapon();
+                    const weaponId = this.weaponManager?.weaponOrder?.[this.weaponManager?.activeIndex];
+                    const unlocks = this.levelFlow?.getWeaponUnlocks() || {};
+                    const throws = this.projectileSystem?.getThrowCounts() || {};
                     return {
                         phase: this.levelFlow.getPhase(),
                         locked: this.playerController?.controls?.isLocked ?? false,
@@ -538,6 +543,10 @@ export class Game {
                         pos: p ? { x: p.x, z: p.z } : null,
                         inputKeys: keys.join('') || 'none',
                         shots: this.projectileSystem?.getTotalShots() ?? 0,
+                        weapon: weaponId || 'none',
+                        weaponUnlocked: unlocks[weaponId] ?? false,
+                        ammo: activeWeapon?.ammo ?? '?',
+                        throws: `${throws.croc || 0}c/${throws.waterBalloon || 0}b/${throws.gardenGnome || 0}g`,
                     };
                 },
                 pointerLock: () => ({
@@ -589,6 +598,25 @@ export class Game {
                 break;
             case 'show_result':
                 break;
+        }
+    }
+
+    _handleWeaponFire() {
+        const button = this.inputManager.consumeMouseClick();
+        if (button !== 0) return;
+
+        const weapon = this.weaponManager.getActiveWeapon();
+        if (!weapon) return;
+
+        const weaponId = this.weaponManager.weaponOrder?.[this.weaponManager.activeIndex];
+        if (!weaponId) return;
+
+        const unlocks = this.levelFlow.getWeaponUnlocks();
+        if (!unlocks[weaponId]) return;
+
+        const fired = weapon.fire();
+        if (fired) {
+            this.runStats.recordThrow(weaponId);
         }
     }
 
